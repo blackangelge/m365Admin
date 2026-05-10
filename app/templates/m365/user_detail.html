@@ -930,6 +930,19 @@
 {# ═══════════════════════════════════════════════════════════════════════════ #}
 <div class="tab-pane" id="tab-pane-lizenzen">
 
+{# Read-only edit bar for entire licenses tab #}
+<div id="sec-lizenzen" style="display:contents;">
+  <div class="d-flex justify-content-end mb-3 gap-2">
+    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+            onclick="secEdit('lizenzen')">
+      <i class="bi bi-pencil"></i> Bearbeiten
+    </button>
+    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+            onclick="secCancel('lizenzen')">
+      <i class="bi bi-x-lg"></i> Abbrechen
+    </button>
+  </div>
+
   {# ── Current licenses ─────────────────────────────────────────────────── #}
   <div class="ms-card ud-card-gap">
     <div class="ms-card-header">
@@ -952,7 +965,7 @@
           <form method="post"
                 action="/admin/m365/users/{{ profile.id }}/license/remove">
             <input type="hidden" name="sku_id" value="{{ lic.skuId }}">
-            <button type="submit" class="ms-btn ms-btn-danger ms-btn-sm"
+            <button type="submit" class="ms-btn ms-btn-danger ms-btn-sm sec-action-btn d-none"
                     onclick="return confirm('Lizenz \'{{ lic.friendlyName or lic.skuPartNumber }}\' wirklich entfernen?')">
               <i class="bi bi-trash3"></i> Entfernen
             </button>
@@ -998,7 +1011,7 @@
             <form method="post"
                   action="/admin/m365/users/{{ profile.id }}/license/add">
               <input type="hidden" name="sku_id" value="{{ al.skuId }}">
-              <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm"
+              <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm sec-action-btn d-none"
                       {% if free_units <= 0 %}disabled{% endif %}>
                 <i class="bi bi-plus-lg"></i> Zuweisen
               </button>
@@ -1014,12 +1027,25 @@
     </div>
   </div>
 
+</div>{# /sec-lizenzen #}
 </div>{# /tab-pane-lizenzen #}
 
 {# ═══════════════════════════════════════════════════════════════════════════ #}
 {# TAB 4 — GRUPPEN                                                            #}
 {# ═══════════════════════════════════════════════════════════════════════════ #}
 <div class="tab-pane" id="tab-pane-gruppen">
+
+<div id="sec-gruppen" style="display:contents;">
+  <div class="d-flex justify-content-end mb-3 gap-2">
+    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+            onclick="secEdit('gruppen')">
+      <i class="bi bi-pencil"></i> Bearbeiten
+    </button>
+    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+            onclick="secCancel('gruppen')">
+      <i class="bi bi-x-lg"></i> Abbrechen
+    </button>
+  </div>
 
   {# ── Current memberships ──────────────────────────────────────────────── #}
   <div class="ms-card ud-card-gap">
@@ -1046,7 +1072,7 @@
             <form method="post"
                   action="/admin/m365/users/{{ profile.id }}/group/remove">
               <input type="hidden" name="group_id" value="{{ grp.id }}">
-              <button type="submit" class="ms-btn ms-btn-danger ms-btn-sm"
+              <button type="submit" class="ms-btn ms-btn-danger ms-btn-sm sec-action-btn d-none"
                       onclick="return confirm('Aus Gruppe \'{{ grp.displayName }}\' entfernen?')">
                 <i class="bi bi-person-dash"></i> Entfernen
               </button>
@@ -1088,7 +1114,7 @@
             <form method="post"
                   action="/admin/m365/users/{{ profile.id }}/group/add">
               <input type="hidden" name="group_id" value="{{ ag.id }}">
-              <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm">
+              <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm sec-action-btn d-none">
                 <i class="bi bi-person-plus"></i> Hinzufügen
               </button>
             </form>
@@ -1104,6 +1130,7 @@
     </div>
   </div>
 
+</div>{# /sec-gruppen #}
 </div>{# /tab-pane-gruppen #}
 
 {# ═══════════════════════════════════════════════════════════════════════════ #}
@@ -1111,86 +1138,194 @@
 {# ═══════════════════════════════════════════════════════════════════════════ #}
 <div class="tab-pane" id="tab-pane-freigabe">
 
-  <div class="ms-info-alert ud-card-gap mb-3">
-    <i class="bi bi-info-circle-fill" style="flex-shrink:0;margin-top:1px;"></i>
+  {% if delegates_error %}
+  <div class="ms-alert ms-alert-danger mb-4">
+    <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;"></i>
     <div>
-      Diese Berechtigungen werden über <strong>Exchange Online</strong> verwaltet und sind nicht direkt
-      über die Graph API v1.0 verfügbar. Die Konfiguration erfolgt im Exchange Admin Center.
+      <strong>EWS-Verbindungsfehler</strong><br>
+      {{ delegates_error }}<br><br>
+      <strong>Benötigte Berechtigung:</strong><br>
+      Azure AD App → API-Berechtigungen → Office 365 Exchange Online →
+      Application → <code>full_access_as_app</code> (Admin-Zustimmung erforderlich)
+    </div>
+    <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+  </div>
+  {% endif %}
+
+  {# ── Card 1: Delegierte (EWS via exchangelib) ─────────────────────────── #}
+  <div class="ms-card ud-card-gap" id="sec-freigabe">
+    <div class="ms-card-header d-flex justify-content-between align-items-center">
+      <span>
+        <i class="bi bi-shield-lock-fill"></i> Postfach-Delegierte (EWS)
+        {% if delegates %}
+        <span class="ms-badge ms-badge-blue ms-2">{{ delegates | length }}</span>
+        {% endif %}
+      </span>
+      <div class="d-flex gap-2">
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+                onclick="secEdit('freigabe')">
+          <i class="bi bi-pencil"></i> Bearbeiten
+        </button>
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+                onclick="secCancel('freigabe')">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </button>
+      </div>
+    </div>
+    <div class="ms-card-body p-0">
+
+      {# Current delegates list #}
+      {% if delegates %}
+        {% for d in delegates %}
+        <div class="perm-row" style="padding:12px 20px;">
+          <div class="perm-icon" style="background:#e5f2ff;color:#0078d4;">
+            <i class="bi bi-person-fill" style="font-size:16px;"></i>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:13.5px;">
+              {{ d.name or d.email }}
+            </div>
+            <div class="text-muted" style="font-size:12px;font-family:monospace;">
+              {{ d.email }}
+            </div>
+            <div style="font-size:12px;margin-top:4px;display:flex;gap:12px;flex-wrap:wrap;">
+              <span>
+                <i class="bi bi-inbox me-1"></i>
+                <strong>Posteingang:</strong>
+                <span class="ms-badge {% if d.inbox == 'Editor' %}ms-badge-blue{% elif d.inbox == 'Reviewer' %}ms-badge-gray{% elif d.inbox == 'Author' %}ms-badge-green{% else %}ms-badge-gray{% endif %}">
+                  {{ d.inbox }}
+                </span>
+              </span>
+              <span>
+                <i class="bi bi-calendar3 me-1"></i>
+                <strong>Kalender:</strong>
+                <span class="ms-badge {% if d.calendar == 'Editor' %}ms-badge-blue{% elif d.calendar == 'Reviewer' %}ms-badge-gray{% elif d.calendar == 'Author' %}ms-badge-green{% else %}ms-badge-gray{% endif %}">
+                  {{ d.calendar }}
+                </span>
+              </span>
+              {% if d.receive_copies %}
+              <span class="ms-badge ms-badge-green">
+                <i class="bi bi-envelope-check me-1"></i>Kopien erhalten
+              </span>
+              {% endif %}
+            </div>
+          </div>
+          <form method="post"
+                action="/admin/m365/users/{{ profile.id }}/delegate/remove">
+            <input type="hidden" name="delegate_email" value="{{ d.email }}">
+            <button type="submit"
+                    class="ms-btn ms-btn-danger ms-btn-sm sec-action-btn d-none"
+                    onclick="return confirm('Delegierten {{ d.email }} wirklich entfernen?')">
+              <i class="bi bi-person-dash"></i> Entfernen
+            </button>
+          </form>
+        </div>
+        {% endfor %}
+      {% elif not delegates_error %}
+        <div class="px-4 py-4 text-muted small">
+          <i class="bi bi-info-circle me-1"></i>
+          Keine Delegierten vorhanden.
+        </div>
+      {% endif %}
+
     </div>
   </div>
 
-  <div class="ms-card">
-    <div class="ms-card-header">
-      <i class="bi bi-shield-lock-fill"></i> Postfach-Berechtigungen
+  {# ── Card 2: Delegierten hinzufügen ──────────────────────────────────── #}
+  <div class="ms-card ud-card-gap" id="sec-freigabe-add">
+    <div class="ms-card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-person-plus-fill"></i> Delegierten hinzufügen / bearbeiten</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+                onclick="secEdit('freigabe-add')">
+          <i class="bi bi-pencil"></i> Bearbeiten
+        </button>
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+                onclick="secCancel('freigabe-add')">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </button>
+      </div>
     </div>
     <div class="ms-card-body">
+      <form method="post" action="/admin/m365/users/{{ profile.id }}/delegate/add">
 
-      {# Vollzugriff #}
-      <div class="perm-row">
-        <div class="perm-icon" style="background:#e5f2ff;color:#0078d4;">
-          <i class="bi bi-folder2-open" style="font-size:16px;"></i>
-        </div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13.5px;">Vollzugriff (Full Access)</div>
-          <div class="text-muted" style="font-size:12.5px;">
-            Erlaubt das vollständige Lesen und Verwalten des Postfachs. Der Benutzer kann im Namen des
-            Postfachinhabers E-Mails lesen, verschieben und löschen.
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label" for="del-email">E-Mail des Delegierten <span class="text-danger">*</span></label>
+            <input type="email" class="form-control sec-input" id="del-email"
+                   name="delegate_email"
+                   placeholder="kollege@beispiel.de" disabled>
           </div>
         </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label" for="del-inbox">Posteingang-Berechtigung</label>
+            <select class="form-select sec-input" id="del-inbox" name="inbox_level" disabled>
+              {% for lvl in perm_levels %}
+              <option value="{{ lvl }}" {% if lvl == 'Editor' %}selected{% endif %}>
+                {{ lvl }} — {{ perm_labels[lvl] }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="del-calendar">Kalender-Berechtigung</label>
+            <select class="form-select sec-input" id="del-calendar" name="calendar_level" disabled>
+              {% for lvl in perm_levels %}
+              <option value="{{ lvl }}">
+                {{ lvl }} — {{ perm_labels[lvl] }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check mb-1">
+              <input class="form-check-input sec-input" type="checkbox"
+                     id="del-copies" name="receive_copies" disabled>
+              <label class="form-check-label" for="del-copies">
+                Kopien von Besprechungsanfragen erhalten
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ms-field-note mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Delegierte können mit <strong>Editor</strong>-Berechtigung E-Mails lesen, erstellen,
+          bearbeiten und löschen und im Auftrag des Postfachinhabers senden.<br>
+          Zum Aktualisieren eines bestehenden Delegierten einfach erneut hinzufügen.
+        </div>
+
+        <button type="submit" class="ms-btn ms-btn-primary sec-submit d-none">
+          <i class="bi bi-person-check"></i> Delegierten speichern
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Card 3: Als Benutzer senden (Send As) ────────────────────────────── #}
+  <div class="ms-card ud-card-gap">
+    <div class="ms-card-header">
+      <i class="bi bi-person-check-fill"></i> Als Benutzer senden (Send As)
+    </div>
+    <div class="ms-card-body">
+      <div class="ms-info-alert">
+        <i class="bi bi-info-circle-fill" style="flex-shrink:0;margin-top:1px;"></i>
         <div>
-          <span class="ms-badge ms-badge-gray me-2">Delegiert</span>
-          <a href="https://admin.exchange.microsoft.com"
-             target="_blank" rel="noopener noreferrer"
-             class="ms-btn ms-btn-secondary ms-btn-sm">
-            <i class="bi bi-box-arrow-up-right"></i> Exchange Admin Center
+          Die <strong>„Send As"</strong>-Berechtigung ist eine Active-Directory-Berechtigung
+          und kann nicht über EWS oder die Graph API v1.0 gesetzt werden.<br><br>
+          Bitte verwende dafür <strong>Exchange Online PowerShell</strong>:
+          <code style="display:block;margin-top:8px;background:#f3f2f1;padding:6px 10px;border-radius:2px;">
+            Add-RecipientPermission -Identity "{{ profile.mail or profile.userPrincipalName }}" -Trustee "delegate@domain.com" -AccessRights SendAs
+          </code>
+          <br>
+          Oder das
+          <a href="https://admin.exchange.microsoft.com" target="_blank" rel="noopener noreferrer">
+            Exchange Admin Center <i class="bi bi-box-arrow-up-right ms-1" style="font-size:11px;"></i>
           </a>
         </div>
       </div>
-
-      {# Im Auftrag senden #}
-      <div class="perm-row">
-        <div class="perm-icon" style="background:#fff4ce;color:#6a4d00;">
-          <i class="bi bi-send" style="font-size:16px;"></i>
-        </div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13.5px;">Im Auftrag senden (Send on Behalf)</div>
-          <div class="text-muted" style="font-size:12.5px;">
-            E-Mails werden mit dem Zusatz „im Auftrag von &lt;Postfachinhaber&gt;" gesendet.
-            Der tatsächliche Absender ist für Empfänger sichtbar.
-          </div>
-        </div>
-        <div>
-          <span class="ms-badge ms-badge-gray me-2">Delegiert</span>
-          <a href="https://admin.exchange.microsoft.com"
-             target="_blank" rel="noopener noreferrer"
-             class="ms-btn ms-btn-secondary ms-btn-sm">
-            <i class="bi bi-box-arrow-up-right"></i> Exchange Admin Center
-          </a>
-        </div>
-      </div>
-
-      {# Als Benutzer senden #}
-      <div class="perm-row">
-        <div class="perm-icon" style="background:#dff6dd;color:#107c10;">
-          <i class="bi bi-person-check-fill" style="font-size:16px;"></i>
-        </div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13.5px;">Als Benutzer senden (Send As)</div>
-          <div class="text-muted" style="font-size:12.5px;">
-            E-Mails werden direkt als dieser Benutzer gesendet. Für Empfänger ist kein Unterschied
-            zum regulären Versand sichtbar.
-          </div>
-        </div>
-        <div>
-          <span class="ms-badge ms-badge-gray me-2">Delegiert</span>
-          <a href="https://admin.exchange.microsoft.com"
-             target="_blank" rel="noopener noreferrer"
-             class="ms-btn ms-btn-secondary ms-btn-sm">
-            <i class="bi bi-box-arrow-up-right"></i> Exchange Admin Center
-          </a>
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -1207,36 +1342,63 @@
   var TAB_KEY = 'ud_active_tab_{{ profile.id }}';
 
   function activateTab(tabId) {
-    // Buttons
     document.querySelectorAll('#ud-tab-bar .ms-tab').forEach(function (btn) {
       btn.classList.toggle('tab-active', btn.dataset.tab === tabId);
     });
-    // Panes
     document.querySelectorAll('.tab-pane').forEach(function (pane) {
       pane.classList.toggle('active', pane.id === 'tab-pane-' + tabId);
     });
     try { sessionStorage.setItem(TAB_KEY, tabId); } catch (e) {}
   }
 
-  // Wire buttons
   document.querySelectorAll('#ud-tab-bar .ms-tab').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      activateTab(this.dataset.tab);
-    });
+    btn.addEventListener('click', function () { activateTab(this.dataset.tab); });
   });
 
-  // Determine initial tab: template var > sessionStorage > default
   var initialTab = '{{ active_tab | default("konto") }}';
   try {
     var stored = sessionStorage.getItem(TAB_KEY);
-    // Only use stored if template doesn't force a specific tab
-    if ('{{ active_tab | default("") }}' === '' && stored) {
-      initialTab = stored;
-    }
+    if ('{{ active_tab | default("") }}' === '' && stored) { initialTab = stored; }
   } catch (e) {}
-
   activateTab(initialTab);
 })();
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* Section read-only / edit mode                                              */
+/* ══════════════════════════════════════════════════════════════════════════ */
+function secEdit(id) {
+  var sec = document.getElementById('sec-' + id);
+  if (!sec) return;
+  // Enable all form inputs
+  sec.querySelectorAll('.sec-input').forEach(function (el) {
+    el.disabled = false;
+  });
+  // Allow OOO chips to be clicked
+  sec.querySelectorAll('.ooo-chip').forEach(function (el) {
+    el.style.pointerEvents = '';
+  });
+  // Remove sec-readonly styling
+  sec.querySelectorAll('.sec-readonly').forEach(function (el) {
+    el.classList.remove('sec-readonly');
+    el.dataset.wasReadonly = '1';
+  });
+  // Show action buttons (remove / add per row)
+  sec.querySelectorAll('.sec-action-btn').forEach(function (el) {
+    el.classList.remove('d-none');
+  });
+  // Show submit buttons
+  sec.querySelectorAll('.sec-submit').forEach(function (el) {
+    el.classList.remove('d-none');
+  });
+  // Toggle edit/cancel buttons
+  sec.querySelectorAll('.sec-btn-edit').forEach(function (el) { el.classList.add('d-none'); });
+  sec.querySelectorAll('.sec-btn-cancel').forEach(function (el) { el.classList.remove('d-none'); });
+}
+
+function secCancel(id) {
+  // Simplest reliable cancel: reload the page
+  location.reload();
+}
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 /* OOO chip selection                                                         */
@@ -1249,9 +1411,7 @@ function selectOooChip(btn) {
   var val = btn.dataset.ooo;
   document.getElementById('ooo-status-input').value = val;
   var block = document.getElementById('ooo-scheduled-block');
-  if (block) {
-    block.style.display = (val === 'scheduled') ? 'flex' : 'none';
-  }
+  if (block) { block.style.display = (val === 'scheduled') ? 'flex' : 'none'; }
 }
 
 function selectExtChip(btn) {
@@ -1271,6 +1431,60 @@ function toggleFwdBlock(enabled) {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════ */
+/* Alias availability check                                                   */
+/* ══════════════════════════════════════════════════════════════════════════ */
+var _aliasCheckTimer = null;
+
+function checkAliasAvailability() {
+  clearTimeout(_aliasCheckTimer);
+  var username = (document.getElementById('alias-username') || {}).value || '';
+  var domain   = (document.getElementById('alias-domain') || {}).value || '';
+  var resultEl = document.getElementById('alias-check-result');
+  var submitBtn = document.getElementById('alias-submit-btn');
+
+  if (!username || !domain) {
+    if (resultEl) resultEl.innerHTML = '';
+    if (submitBtn) submitBtn.disabled = true;
+    return;
+  }
+
+  var email = username + '@' + domain;
+
+  if (resultEl) {
+    resultEl.innerHTML = '<span class="alias-checking"><i class="bi bi-hourglass-split me-1"></i>Wird geprüft…</span>';
+  }
+  if (submitBtn) submitBtn.disabled = true;
+
+  _aliasCheckTimer = setTimeout(function () {
+    fetch('/admin/m365/users/check-email?email=' + encodeURIComponent(email))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!resultEl) return;
+        if (data.error) {
+          resultEl.innerHTML = '<span class="alias-checking"><i class="bi bi-question-circle me-1"></i>' + data.error + '</span>';
+          if (submitBtn) submitBtn.disabled = true;
+        } else if (data.taken) {
+          resultEl.innerHTML =
+            '<span class="alias-taken"><i class="bi bi-x-circle-fill me-1"></i>' +
+            '<strong>' + email + '</strong> ist bereits vergeben' +
+            (data.user ? ' (<a href="/admin/m365/users/' + data.upn + '">' + data.user + '</a>)' : '') +
+            '</span>';
+          if (submitBtn) submitBtn.disabled = true;
+        } else {
+          resultEl.innerHTML =
+            '<span class="alias-ok"><i class="bi bi-check-circle-fill me-1"></i>' +
+            '<strong>' + email + '</strong> ist verfügbar</span>';
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      })
+      .catch(function () {
+        if (resultEl) resultEl.innerHTML = '<span class="alias-checking">Prüfung fehlgeschlagen</span>';
+        if (submitBtn) submitBtn.disabled = false; // allow submit on check failure
+      });
+  }, 500);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
 /* Group search filter                                                         */
 /* ══════════════════════════════════════════════════════════════════════════ */
 function filterGroups(query) {
@@ -1285,8 +1499,7 @@ function filterGroups(query) {
 /* Auto-dismiss alerts after 6 seconds                                        */
 /* ══════════════════════════════════════════════════════════════════════════ */
 (function () {
-  var alerts = document.querySelectorAll('.ms-alert-success, .ms-alert-danger');
-  alerts.forEach(function (el) {
+  document.querySelectorAll('.ms-alert-success, .ms-alert-danger').forEach(function (el) {
     setTimeout(function () {
       if (el && el.parentNode) {
         el.style.transition = 'opacity .4s';

@@ -95,6 +95,19 @@ async def m365_user_detail_page(
     # DB-synced domains for alias dropdown
     db_domains = await list_db_domains(db)
 
+    # EWS delegates (separate from main gather – can fail without affecting rest of page)
+    delegates: list[dict] = []
+    delegates_error: str | None = None
+    smtp_address = (profile.get("mail") or profile.get("userPrincipalName") or "") if profile else ""
+    if smtp_address:
+        try:
+            from app.exchange.client import get_mailbox_delegates
+            delegates = await get_mailbox_delegates(smtp_address)
+        except Exception as exc:
+            delegates_error = str(exc)
+
+    from app.exchange.client import PERM_LEVELS, PERM_LABELS
+
     return templates.TemplateResponse(
         request, _tpl("user_detail"),
         {
@@ -107,6 +120,10 @@ async def m365_user_detail_page(
             "all_licenses":    [l for l in all_licenses if l["skuId"] not in assigned_sku_ids],
             "all_groups":      [g for g in all_groups if g["id"] not in member_group_ids],
             "db_domains":      db_domains,
+            "delegates":       delegates,
+            "delegates_error": delegates_error,
+            "perm_levels":     PERM_LEVELS,
+            "perm_labels":     PERM_LABELS,
             "graph_error":     graph_error,
             "active_tab":      active_tab,
             "msg":             request.query_params.get("msg"),
@@ -388,6 +405,79 @@ async def m365_remove_from_group(
     except GraphError as exc:
         err = quote_plus(str(exc)[:300])
         return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=gruppen&error={err}", status_code=303)
+
+
+# ── EWS Postfach-Freigabe (Delegates via exchangelib) ────────────────────────
+
+@router.post("/users/{user_id}/delegate/add")
+async def m365_delegate_add(
+    user_id: str,
+    request: Request,
+    current_user=Depends(get_current_user),
+    _: SessionData = Depends(require_admin),
+    db=Depends(get_async_db),
+):
+    from app.graph.client import get_user_by_id_full
+    from app.exchange.client import ExchangeError, add_mailbox_delegate
+    form = await request.form()
+    delegate_email = (form.get("delegate_email") or "").strip()
+    inbox_level    = (form.get("inbox_level") or "Editor").strip()
+    cal_level      = (form.get("calendar_level") or "None").strip()
+    receive_copies = form.get("receive_copies") == "on"
+    if not delegate_email or "@" not in delegate_email:
+        err = quote_plus("Ungültige Delegierten-E-Mail-Adresse.")
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&error={err}", status_code=303)
+    try:
+        profile = await get_user_by_id_full(user_id)
+        smtp = profile.get("mail") or profile.get("userPrincipalName", "")
+        if not smtp:
+            raise ExchangeError("Keine primäre E-Mail-Adresse für diesen Benutzer gefunden.")
+        await add_mailbox_delegate(smtp, delegate_email, inbox_level, cal_level, receive_copies)
+        await log_action(db, current_user.id, "ews_delegate_added",
+                         f"Delegierter {delegate_email} → {smtp}", "")
+        msg = quote_plus(f"Delegierter {delegate_email} hinzugefügt.")
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&msg={msg}", status_code=303)
+    except ExchangeError as exc:
+        err = quote_plus(str(exc)[:400])
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&error={err}", status_code=303)
+    except GraphError as exc:
+        err = quote_plus(str(exc)[:400])
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&error={err}", status_code=303)
+    except Exception as exc:
+        logger.exception("delegate/add error for user %s", user_id)
+        err = quote_plus(f"Unerwarteter Fehler: {exc}"[:300])
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&error={err}", status_code=303)
+
+
+@router.post("/users/{user_id}/delegate/remove")
+async def m365_delegate_remove(
+    user_id: str,
+    request: Request,
+    current_user=Depends(get_current_user),
+    _: SessionData = Depends(require_admin),
+    db=Depends(get_async_db),
+):
+    from app.graph.client import get_user_by_id_full
+    from app.exchange.client import ExchangeError, remove_mailbox_delegate
+    form = await request.form()
+    delegate_email = (form.get("delegate_email") or "").strip()
+    if not delegate_email:
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe", status_code=303)
+    try:
+        profile = await get_user_by_id_full(user_id)
+        smtp = profile.get("mail") or profile.get("userPrincipalName", "")
+        await remove_mailbox_delegate(smtp, delegate_email)
+        await log_action(db, current_user.id, "ews_delegate_removed",
+                         f"Delegierter {delegate_email} entfernt von {smtp}", "")
+        msg = quote_plus(f"Delegierter {delegate_email} entfernt.")
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&msg={msg}", status_code=303)
+    except ExchangeError as exc:
+        err = quote_plus(str(exc)[:400])
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&error={err}", status_code=303)
+    except Exception as exc:
+        logger.exception("delegate/remove error for user %s", user_id)
+        err = quote_plus(f"Unerwarteter Fehler: {exc}"[:300])
+        return RedirectResponse(url=f"/admin/m365/users/{user_id}?tab=freigabe&error={err}", status_code=303)
 
 
 # ── E-Mail-Adresse prüfen (Alias-Verfügbarkeit) ───────────────────────────────
