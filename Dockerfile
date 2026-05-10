@@ -24,7 +24,7 @@ WORKDIR /app
 COPY --from=builder /install /usr/local
 COPY --chown=appuser:appuser app/ ./app/
 
-RUN mkdir -p /data && chown appuser:appuser /data
+RUN mkdir -p /db && chown appuser:appuser /db
 
 USER appuser
 

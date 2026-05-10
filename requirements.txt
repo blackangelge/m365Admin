@@ -9,4 +9,4 @@ itsdangerous==2.2.0
 pydantic-settings==2.9.0
 httpx==0.28.1
 tzdata==2025.2
-exchangelib>=4.0.0,<5.0.0
+exchangelib==5.6.0

@@ -3,9 +3,13 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
-*.db
-*.db-wal
-*.db-shm
+# Datenbankdateien (liegen im db/-Ordner, nicht committen)
+db/*.db
+db/*.db-wal
+db/*.db-shm
+# Zertifikate (liegen im certs/-Ordner, nicht committen)
+certs/*.pem
+certs/*.key
 *.egg-info/
 .venv/
 venv/
