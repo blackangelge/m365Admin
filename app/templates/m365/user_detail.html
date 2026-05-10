@@ -1,0 +1,1300 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.displayName or profile.userPrincipalName }} — M365 Admin{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Page-level command bar ─────────────────────────────────────────────── */
+  .ud-command-bar {
+    background: #fff;
+    border-bottom: 1px solid #edebe9;
+    padding: 16px 0 0;
+    margin-bottom: 0;
+  }
+
+  .ud-header-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 0 16px;
+    flex-wrap: wrap;
+  }
+
+  .ud-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #0078d4;
+    color: #fff;
+    font-size: 22px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .ud-title-block { flex: 1; min-width: 0; }
+  .ud-display-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: #323130;
+    margin: 0 0 2px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ud-upn {
+    font-size: 13px;
+    color: #605e5c;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ud-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .ud-created {
+    font-size: 12px;
+    color: #605e5c;
+  }
+
+  /* ── Tab bar ────────────────────────────────────────────────────────────── */
+  .ms-tab-bar {
+    background: #fff;
+    border-bottom: 1px solid #edebe9;
+    display: flex;
+    padding: 0 0;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .ms-tab-bar::-webkit-scrollbar { display: none; }
+
+  .ms-tab {
+    padding: 12px 18px;
+    border: none;
+    background: transparent;
+    color: #323130;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 13.5px;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: color .1s, border-bottom-color .1s;
+    position: relative;
+    top: 1px;
+  }
+  .ms-tab:hover { border-bottom-color: #c8c6c4; color: #0078d4; }
+  .ms-tab.tab-active { color: #0078d4; border-bottom-color: #0078d4; font-weight: 600; }
+
+  /* ── Tab panes ──────────────────────────────────────────────────────────── */
+  .tab-pane { display: none; padding-top: 24px; }
+  .tab-pane.active { display: block; }
+
+  /* ── Section titles inside cards ───────────────────────────────────────── */
+  .action-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: #605e5c;
+    letter-spacing: .04em;
+    margin-bottom: 12px;
+  }
+
+  /* ── Permission rows (Tab 5) ────────────────────────────────────────────── */
+  .perm-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f3f2f1;
+  }
+  .perm-row:last-child { border-bottom: none; }
+  .perm-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* ── License rows ───────────────────────────────────────────────────────── */
+  .lic-row, .grp-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f3f2f1;
+    font-size: 13.5px;
+    transition: background .1s;
+  }
+  .lic-row:last-child, .grp-row:last-child { border-bottom: none; }
+  .lic-row:hover, .grp-row:hover { background: #f3f2f1; }
+
+  .lic-icon, .grp-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+  }
+  .lic-info, .grp-info { flex: 1; min-width: 0; }
+  .lic-name, .grp-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lic-sku, .grp-mail {
+    font-size: 11.5px;
+    color: #605e5c;
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Proxy address rows ─────────────────────────────────────────────────── */
+  .proxy-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f3f2f1;
+    font-size: 13px;
+  }
+  .proxy-row:last-child { border-bottom: none; }
+  .proxy-primary { color: #0078d4; font-weight: 600; }
+  .proxy-alias   { color: #323130; }
+
+  /* ── OOO chip buttons ───────────────────────────────────────────────────── */
+  .ooo-chip-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ooo-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 14px;
+    border-radius: 16px;
+    border: 1px solid #c8c6c4;
+    background: #fff;
+    color: #323130;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .12s;
+  }
+  .ooo-chip:hover { border-color: #0078d4; color: #0078d4; }
+  .ooo-chip.selected { background: #0078d4; border-color: #0078d4; color: #fff; }
+
+  /* ── Forwarding toggle ──────────────────────────────────────────────────── */
+  .ms-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .ms-toggle-label { font-size: 13.5px; font-weight: 500; }
+
+  /* ── Group search input ─────────────────────────────────────────────────── */
+  #grp-search-input {
+    border: 1px solid #8a8886;
+    border-radius: 2px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 100%;
+    margin-bottom: 12px;
+  }
+  #grp-search-input:focus {
+    outline: none;
+    border-color: #0078d4;
+    box-shadow: 0 0 0 1px #0078d4;
+  }
+
+  /* ── Info alert ─────────────────────────────────────────────────────────── */
+  .ms-info-alert {
+    background: #eff6fc;
+    border: 1px solid #c7e0f4;
+    border-radius: 2px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #004578;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  /* ── Spacer between cards ───────────────────────────────────────────────── */
+  .ud-card-gap { margin-bottom: 16px; }
+
+  /* ── Back link ──────────────────────────────────────────────────────────── */
+  .ud-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: #605e5c;
+    text-decoration: none;
+    margin-bottom: 10px;
+  }
+  .ud-back:hover { color: #0078d4; }
+
+  /* ── Textarea ───────────────────────────────────────────────────────────── */
+  textarea.form-control { resize: vertical; }
+
+  /* ── Small note ─────────────────────────────────────────────────────────── */
+  .ms-field-note {
+    font-size: 12px;
+    color: #605e5c;
+    margin-top: 4px;
+  }
+
+  /* ── Read-only / Edit-mode ──────────────────────────────────────────────── */
+  .sec-edit-bar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  /* Disabled inputs look "read" but not grayed out to full opacity */
+  .sec-readonly input:disabled,
+  .sec-readonly select:disabled,
+  .sec-readonly textarea:disabled {
+    background: #f8f7f6;
+    color: #323130;
+    border-color: #edebe9;
+    opacity: 1;
+    cursor: default;
+  }
+  .sec-readonly .ooo-chip {
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  .sec-readonly .form-check-input:disabled {
+    opacity: 1;
+    cursor: default;
+  }
+
+  /* ── Alias availability indicator ───────────────────────────────────────── */
+  #alias-check-result {
+    font-size: 12.5px;
+    margin-top: 6px;
+    min-height: 18px;
+  }
+  .alias-ok   { color: #107c10; }
+  .alias-taken { color: #a80000; }
+  .alias-checking { color: #605e5c; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Command bar ──────────────────────────────────────────────────────────── #}
+<div class="ud-command-bar">
+  <a href="/admin/m365/users" class="ud-back">
+    <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
+  </a>
+
+  <div class="ud-header-row">
+    {# Avatar #}
+    <div class="ud-avatar">
+      {{ (profile.displayName or profile.userPrincipalName or '?')[0] | upper }}
+    </div>
+
+    {# Title block #}
+    <div class="ud-title-block">
+      <h1 class="ud-display-name">{{ profile.displayName or '—' }}</h1>
+      <p class="ud-upn">{{ profile.userPrincipalName }}</p>
+    </div>
+
+    {# Meta: status badge + date #}
+    <div class="ud-meta">
+      {% if profile.accountEnabled %}
+        <span class="ms-badge ms-badge-green">
+          <i class="bi bi-circle-fill" style="font-size:7px;"></i> Aktiv
+        </span>
+      {% else %}
+        <span class="ms-badge ms-badge-red">
+          <i class="bi bi-circle-fill" style="font-size:7px;"></i> Deaktiviert
+        </span>
+      {% endif %}
+      {% if profile.createdDateTime %}
+        <span class="ud-created">
+          <i class="bi bi-calendar3 me-1"></i>
+          Erstellt: {{ profile.createdDateTime[:10] }}
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Tab bar ── #}
+  <div class="ms-tab-bar" id="ud-tab-bar">
+    <button class="ms-tab" data-tab="konto">
+      <i class="bi bi-person-fill me-1"></i>Konto
+    </button>
+    <button class="ms-tab" data-tab="postfach">
+      <i class="bi bi-envelope-fill me-1"></i>E-Mail &amp; Postfach
+    </button>
+    <button class="ms-tab" data-tab="lizenzen">
+      <i class="bi bi-key-fill me-1"></i>Lizenzen
+    </button>
+    <button class="ms-tab" data-tab="gruppen">
+      <i class="bi bi-people-fill me-1"></i>Gruppen
+    </button>
+    <button class="ms-tab" data-tab="freigabe">
+      <i class="bi bi-shield-lock-fill me-1"></i>Postfach-Freigabe
+    </button>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{# TAB 1 — KONTO                                                              #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<div class="tab-pane" id="tab-pane-konto">
+  <div class="ms-card" id="sec-konto">
+    <div class="ms-card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-person-vcard-fill"></i> Kontaktinformationen</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+                onclick="secEdit('konto')">
+          <i class="bi bi-pencil"></i> Bearbeiten
+        </button>
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+                onclick="secCancel('konto')">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </button>
+      </div>
+    </div>
+    <div class="ms-card-body sec-readonly">
+      <form method="post" action="/admin/m365/users/{{ profile.id }}/contact">
+
+        {# Row 1: givenName / surname / displayName #}
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label" for="givenName">Vorname</label>
+            <input type="text" class="form-control sec-input" id="givenName" name="givenName"
+                   value="{{ profile.givenName or '' }}" disabled>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="surname">Nachname</label>
+            <input type="text" class="form-control sec-input" id="surname" name="surname"
+                   value="{{ profile.surname or '' }}" disabled>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="displayName">Anzeigename</label>
+            <input type="text" class="form-control sec-input" id="displayName" name="displayName"
+                   value="{{ profile.displayName or '' }}" disabled>
+          </div>
+        </div>
+
+        {# Row 2: jobTitle / department / officeLocation #}
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label class="form-label" for="jobTitle">Position</label>
+            <input type="text" class="form-control sec-input" id="jobTitle" name="jobTitle"
+                   value="{{ profile.jobTitle or '' }}" disabled>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="department">Abteilung</label>
+            <input type="text" class="form-control sec-input" id="department" name="department"
+                   value="{{ profile.department or '' }}" disabled>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="officeLocation">Büro</label>
+            <input type="text" class="form-control sec-input" id="officeLocation" name="officeLocation"
+                   value="{{ profile.officeLocation or '' }}" disabled>
+          </div>
+        </div>
+
+        {# Row 3: mobilePhone / businessPhone / city / country #}
+        <div class="row g-3 mb-3">
+          <div class="col-md-3">
+            <label class="form-label" for="mobilePhone">Mobil</label>
+            <input type="tel" class="form-control sec-input" id="mobilePhone" name="mobilePhone"
+                   value="{{ profile.mobilePhone or '' }}" disabled>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="businessPhone">Telefon</label>
+            <input type="tel" class="form-control sec-input" id="businessPhone" name="businessPhone"
+                   value="{{ profile.businessPhones[0] if profile.businessPhones else '' }}" disabled>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="city">Ort</label>
+            <input type="text" class="form-control sec-input" id="city" name="city"
+                   value="{{ profile.city or '' }}" disabled>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="country">Land</label>
+            <input type="text" class="form-control sec-input" id="country" name="country"
+                   value="{{ profile.country or '' }}" disabled>
+          </div>
+        </div>
+
+        {# Row 4: usageLocation #}
+        <div class="row g-3 mb-4">
+          <div class="col-md-4">
+            <label class="form-label" for="usageLocation">Nutzungsstandort</label>
+            <select class="form-select sec-input" id="usageLocation" name="usageLocation" disabled>
+              {% set ul = profile.usageLocation or '' %}
+              {% for code, label in [
+                ('AT','Österreich (AT)'), ('CH','Schweiz (CH)'), ('DE','Deutschland (DE)'),
+                ('US','USA (US)'), ('GB','Vereinigtes Königreich (GB)'), ('FR','Frankreich (FR)'),
+                ('NL','Niederlande (NL)'), ('IT','Italien (IT)'), ('ES','Spanien (ES)'),
+                ('PL','Polen (PL)'), ('SE','Schweden (SE)'), ('NO','Norwegen (NO)'),
+                ('DK','Dänemark (DK)'), ('FI','Finnland (FI)'), ('BE','Belgien (BE)'),
+                ('PT','Portugal (PT)'), ('CZ','Tschechien (CZ)'), ('SK','Slowakei (SK)'),
+                ('HU','Ungarn (HU)'), ('RO','Rumänien (RO)'), ('HR','Kroatien (HR)'),
+                ('SI','Slowenien (SI)'), ('BG','Bulgarien (BG)'), ('LU','Luxemburg (LU)')
+              ] %}
+              <option value="{{ code }}" {% if ul == code %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="ms-btn ms-btn-primary sec-submit d-none">
+          <i class="bi bi-check-lg"></i> Änderungen speichern
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{# TAB 2 — E-MAIL & POSTFACH                                                  #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<div class="tab-pane" id="tab-pane-postfach">
+
+  {# ── Card 1: Abwesenheitsnotiz ────────────────────────────────────────── #}
+  <div class="ms-card ud-card-gap" id="sec-ooo">
+    <div class="ms-card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-calendar-x-fill"></i> Abwesenheitsnotiz</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+                onclick="secEdit('ooo')">
+          <i class="bi bi-pencil"></i> Bearbeiten
+        </button>
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+                onclick="secCancel('ooo')">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </button>
+      </div>
+    </div>
+    <div class="ms-card-body sec-readonly">
+      {% set ars = mailbox_settings.get('automaticRepliesSetting', {}) if mailbox_settings else {} %}
+      {% set ooo_status = ars.get('status', 'disabled') %}
+      <form method="post" action="/admin/m365/users/{{ profile.id }}/mailbox-settings" id="ooo-form">
+        <input type="hidden" name="action" value="ooo">
+
+        <div class="mb-3">
+          <label class="form-label d-block mb-2">Status</label>
+          <div class="ooo-chip-group">
+            <button type="button" class="ooo-chip {% if ooo_status == 'disabled' %}selected{% endif %}"
+                    data-ooo="disabled" onclick="selectOooChip(this)">
+              <i class="bi bi-x-circle"></i> Deaktiviert
+            </button>
+            <button type="button" class="ooo-chip {% if ooo_status == 'alwaysEnabled' %}selected{% endif %}"
+                    data-ooo="alwaysEnabled" onclick="selectOooChip(this)">
+              <i class="bi bi-check-circle"></i> Immer aktiv
+            </button>
+            <button type="button" class="ooo-chip {% if ooo_status == 'scheduled' %}selected{% endif %}"
+                    data-ooo="scheduled" onclick="selectOooChip(this)">
+              <i class="bi bi-calendar-range"></i> Geplant
+            </button>
+          </div>
+          <input type="hidden" name="oooStatus" id="ooo-status-input" value="{{ ooo_status }}">
+        </div>
+
+        {# Scheduled date range — shown only when scheduled #}
+        <div id="ooo-scheduled-block" class="row g-3 mb-3"
+             style="display: {% if ooo_status == 'scheduled' %}flex{% else %}none{% endif %} !important;">
+          <div class="col-md-6">
+            <label class="form-label" for="scheduledStart">Startdatum &amp; -uhrzeit</label>
+            <input type="datetime-local" class="form-control sec-input" id="scheduledStart"
+                   name="scheduledStartDateTime" disabled
+                   value="{{ ((ars.get('scheduledStartDateTime') or {}).get('dateTime') or '')[:16] }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="scheduledEnd">Enddatum &amp; -uhrzeit</label>
+            <input type="datetime-local" class="form-control sec-input" id="scheduledEnd"
+                   name="scheduledEndDateTime" disabled
+                   value="{{ ((ars.get('scheduledEndDateTime') or {}).get('dateTime') or '')[:16] }}">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="internalReply">Nachricht intern</label>
+          <textarea class="form-control sec-input" id="internalReply" name="internalReplyMessage"
+                    rows="4" disabled>{{ ars.get('internalReplyMessage', '') | striptags }}</textarea>
+          <div class="ms-field-note">Wird an interne Empfänger (selbe Organisation) gesendet.</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label" for="externalReply">Nachricht extern</label>
+          <textarea class="form-control sec-input" id="externalReply" name="externalReplyMessage"
+                    rows="4" disabled>{{ ars.get('externalReplyMessage', '') | striptags }}</textarea>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label d-block mb-2">Externe Empfänger</label>
+          <div class="ooo-chip-group">
+            {% set ext_aud = ars.get('externalAudience', 'none') %}
+            <button type="button" class="ooo-chip {% if ext_aud == 'none' %}selected{% endif %}"
+                    data-ext="none" onclick="selectExtChip(this)">
+              <i class="bi bi-x-circle"></i> Niemand
+            </button>
+            <button type="button" class="ooo-chip {% if ext_aud == 'contactsOnly' %}selected{% endif %}"
+                    data-ext="contactsOnly" onclick="selectExtChip(this)">
+              <i class="bi bi-person-check"></i> Nur Kontakte
+            </button>
+            <button type="button" class="ooo-chip {% if ext_aud == 'all' %}selected{% endif %}"
+                    data-ext="all" onclick="selectExtChip(this)">
+              <i class="bi bi-globe2"></i> Alle
+            </button>
+          </div>
+          <input type="hidden" name="externalAudience" id="ext-audience-input" value="{{ ext_aud }}">
+        </div>
+
+        <button type="submit" class="ms-btn ms-btn-primary sec-submit d-none">
+          <i class="bi bi-check-lg"></i> Abwesenheitsnotiz speichern
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Card 2: Weiterleitung ────────────────────────────────────────────── #}
+  <div class="ms-card ud-card-gap" id="sec-fwd">
+    <div class="ms-card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-forward-fill"></i> E-Mail-Weiterleitung</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+                onclick="secEdit('fwd')">
+          <i class="bi bi-pencil"></i> Bearbeiten
+        </button>
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+                onclick="secCancel('fwd')">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </button>
+      </div>
+    </div>
+    <div class="ms-card-body sec-readonly">
+      {% set fwd_raw = (forwarding.forwardingSmtpAddress or '') if forwarding else '' %}
+      {% set fwd_addr = fwd_raw[5:] if fwd_raw.startswith('smtp:') else fwd_raw %}
+      {% set fwd_deliver = (forwarding.deliverToMailboxAndForward or False) if forwarding else False %}
+      {% set fwd_enabled = fwd_addr | length > 0 %}
+
+      <form method="post" action="/admin/m365/users/{{ profile.id }}/forwarding">
+
+        <div class="ms-toggle-row mb-3">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input sec-input" type="checkbox" role="switch"
+                   id="fwd-enabled" name="forwardingEnabled"
+                   {% if fwd_enabled %}checked{% endif %}
+                   onchange="toggleFwdBlock(this.checked)" disabled>
+            <label class="form-check-label ms-toggle-label" for="fwd-enabled">
+              Weiterleitung aktiv
+            </label>
+          </div>
+        </div>
+
+        <div id="fwd-detail-block"
+             style="display: {% if fwd_enabled %}block{% else %}none{% endif %};">
+          <div class="mb-3">
+            <label class="form-label" for="fwd-address">Weiterleitungsadresse</label>
+            <input type="email" class="form-control sec-input" id="fwd-address"
+                   name="forwardingSmtpAddress"
+                   value="{{ fwd_addr }}"
+                   placeholder="ziel@example.com" disabled>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input sec-input" type="checkbox" id="fwd-keep-copy"
+                   name="deliverToMailboxAndForward"
+                   {% if fwd_deliver %}checked{% endif %} disabled>
+            <label class="form-check-label" for="fwd-keep-copy">
+              Kopie im Postfach behalten
+            </label>
+          </div>
+        </div>
+
+        <div class="ms-field-note mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Benötigt <code>MailboxSettings.ReadWrite</code> Berechtigung.
+        </div>
+
+        <button type="submit" class="ms-btn ms-btn-primary sec-submit d-none">
+          <i class="bi bi-check-lg"></i> Weiterleitung speichern
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Card 3: Aliase (Proxy-Adressen) ─────────────────────────────────── #}
+  <div class="ms-card ud-card-gap" id="sec-alias">
+    <div class="ms-card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-at"></i> Aliase (Proxy-Adressen)</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+                onclick="secEdit('alias')">
+          <i class="bi bi-pencil"></i> Bearbeiten
+        </button>
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+                onclick="secCancel('alias')">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </button>
+      </div>
+    </div>
+    <div class="ms-card-body">
+
+      <div class="action-section-title">Aktuelle Adressen</div>
+
+      {% set proxy_list = profile.proxyAddresses if profile.proxyAddresses else [] %}
+      {% if proxy_list %}
+        <div class="mb-4">
+          {% for addr in proxy_list %}
+            {% if addr.upper().startswith('SMTP:') or addr.lower().startswith('smtp:') %}
+              {% set is_primary = addr[:4] == 'SMTP' %}
+              {% set clean_addr = addr[5:] %}
+              <div class="proxy-row">
+                <span class="{% if is_primary %}proxy-primary{% else %}proxy-alias{% endif %} flex-grow-1">
+                  {% if is_primary %}
+                    <i class="bi bi-star-fill me-1" style="font-size:11px;color:#0078d4;"></i>
+                  {% else %}
+                    <i class="bi bi-at me-1" style="font-size:13px;color:#605e5c;"></i>
+                  {% endif %}
+                  {{ clean_addr }}
+                  {% if is_primary %}
+                    <span class="ms-badge ms-badge-blue ms-2" style="font-size:10px;">Primär</span>
+                  {% endif %}
+                </span>
+                {% if not is_primary %}
+                <form method="post"
+                      action="/admin/m365/users/{{ profile.id }}/alias/remove"
+                      style="display:inline;">
+                  <input type="hidden" name="alias" value="{{ clean_addr }}">
+                  <button type="submit" class="ms-btn ms-btn-danger ms-btn-sm sec-action-btn d-none"
+                          onclick="return confirm('Alias {{ clean_addr }} wirklich entfernen?')">
+                    <i class="bi bi-trash3"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted small mb-4">Keine Proxy-Adressen vorhanden.</p>
+      {% endif %}
+
+      {# ── Alias hinzufügen (nur im Bearbeiten-Modus) ── #}
+      <div class="sec-action-btn d-none">
+        <div class="action-section-title">Alias hinzufügen</div>
+        <form method="post" action="/admin/m365/users/{{ profile.id }}/alias/add" id="alias-add-form">
+          <div class="d-flex gap-2 align-items-start flex-wrap">
+            <div>
+              <label class="form-label" for="alias-username">Benutzername</label>
+              <input type="text" class="form-control" id="alias-username" name="alias_username"
+                     placeholder="vorname.nachname"
+                     oninput="checkAliasAvailability()"
+                     style="min-width:180px;">
+            </div>
+            <div style="padding-top:2px;">
+              <label class="form-label">&nbsp;</label>
+              <div style="padding-top:6px;font-size:20px;color:#605e5c;line-height:38px;">@</div>
+            </div>
+            <div>
+              <label class="form-label" for="alias-domain">Domain</label>
+              <select class="form-select" id="alias-domain" name="alias_domain"
+                      onchange="checkAliasAvailability()"
+                      style="min-width:200px;">
+                <option value="">– Domain wählen –</option>
+                {% for d in db_domains %}
+                <option value="{{ d.name }}">{{ d.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div style="padding-top:28px;">
+              <button type="submit" class="ms-btn ms-btn-primary"
+                      id="alias-submit-btn" disabled>
+                <i class="bi bi-plus-lg"></i> Hinzufügen
+              </button>
+            </div>
+          </div>
+          <div id="alias-check-result"></div>
+        </form>
+
+        <div class="ms-field-note mt-3">
+          <i class="bi bi-info-circle me-1"></i>
+          <strong>SMTP</strong> (Großbuchstaben) = primäre E-Mail-Adresse &nbsp;·&nbsp;
+          <strong>smtp</strong> (Kleinbuchstaben) = Alias-Adresse
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Card 4: Sprache & Zeitzone ───────────────────────────────────────── #}
+  <div class="ms-card ud-card-gap" id="sec-langtz">
+    <div class="ms-card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-translate"></i> Sprache &amp; Zeitzone</span>
+      <div class="d-flex gap-2">
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
+                onclick="secEdit('langtz')">
+          <i class="bi bi-pencil"></i> Bearbeiten
+        </button>
+        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
+                onclick="secCancel('langtz')">
+          <i class="bi bi-x-lg"></i> Abbrechen
+        </button>
+      </div>
+    </div>
+    <div class="ms-card-body sec-readonly">
+      {% set mb_lang = mailbox_settings.get('language', {}) if mailbox_settings else {} %}
+      {% set mb_tz   = mailbox_settings.get('timeZone', '') if mailbox_settings else '' %}
+      {% set cur_locale = mb_lang.get('locale', '') | lower %}
+
+      <form method="post" action="/admin/m365/users/{{ profile.id }}/mailbox-settings">
+        <input type="hidden" name="action" value="langtimezone">
+
+        <div class="row g-3 mb-4">
+          <div class="col-md-6">
+            <label class="form-label" for="mb-language">Sprache</label>
+            <select class="form-select sec-input" id="mb-language" name="locale" disabled>
+              {# M365 uses lowercase BCP47 locale codes (de-de, en-us, etc.) #}
+              {% for lc, ln in [
+                ('de-de','Deutsch (Deutschland)'),
+                ('de-at','Deutsch (Österreich)'),
+                ('de-ch','Deutsch (Schweiz)'),
+                ('de-li','Deutsch (Liechtenstein)'),
+                ('de-lu','Deutsch (Luxemburg)'),
+                ('en-us','English (United States)'),
+                ('en-gb','English (United Kingdom)'),
+                ('en-au','English (Australia)'),
+                ('en-ca','English (Canada)'),
+                ('en-in','English (India)'),
+                ('en-ie','English (Ireland)'),
+                ('en-nz','English (New Zealand)'),
+                ('en-za','English (South Africa)'),
+                ('fr-fr','Français (France)'),
+                ('fr-be','Français (Belgique)'),
+                ('fr-ch','Français (Suisse)'),
+                ('fr-ca','Français (Canada)'),
+                ('fr-lu','Français (Luxembourg)'),
+                ('nl-nl','Nederlands (Nederland)'),
+                ('nl-be','Nederlands (België)'),
+                ('it-it','Italiano (Italia)'),
+                ('it-ch','Italiano (Svizzera)'),
+                ('es-es','Español (España)'),
+                ('es-mx','Español (México)'),
+                ('es-ar','Español (Argentina)'),
+                ('es-cl','Español (Chile)'),
+                ('es-co','Español (Colombia)'),
+                ('pt-pt','Português (Portugal)'),
+                ('pt-br','Português (Brasil)'),
+                ('sv-se','Svenska (Sverige)'),
+                ('nb-no','Norsk bokmål (Norge)'),
+                ('nn-no','Nynorsk (Norge)'),
+                ('da-dk','Dansk (Danmark)'),
+                ('fi-fi','Suomi (Suomi)'),
+                ('pl-pl','Polski (Polska)'),
+                ('cs-cz','Čeština (Česká republika)'),
+                ('sk-sk','Slovenčina (Slovensko)'),
+                ('hu-hu','Magyar (Magyarország)'),
+                ('ro-ro','Română (România)'),
+                ('hr-hr','Hrvatski (Hrvatska)'),
+                ('sl-si','Slovenščina (Slovenija)'),
+                ('bg-bg','Български (България)'),
+                ('el-gr','Ελληνικά (Ελλάδα)'),
+                ('tr-tr','Türkçe (Türkiye)'),
+                ('ru-ru','Русский (Россия)'),
+                ('uk-ua','Українська (Україна)'),
+                ('lt-lt','Lietuvių (Lietuva)'),
+                ('lv-lv','Latviešu (Latvija)'),
+                ('et-ee','Eesti (Eesti)'),
+                ('sr-latn-rs','Srpski (Srbija)'),
+                ('sq-al','Shqip (Shqipëri)'),
+                ('mk-mk','Македонски (Македонија)'),
+                ('bs-latn-ba','Bosanski (Bosna i Hercegovina)'),
+                ('is-is','Íslenska (Ísland)'),
+                ('ca-es','Català (Catalunya)'),
+                ('eu-es','Euskara (Euskal Herria)'),
+                ('gl-es','Galego (Galicia)'),
+                ('ja-jp','日本語 (日本)'),
+                ('zh-cn','中文（简体）'),
+                ('zh-tw','中文（繁體）'),
+                ('zh-hk','中文（香港）'),
+                ('ko-kr','한국어 (대한민국)'),
+                ('ar-sa','العربية (المملكة العربية السعودية)'),
+                ('ar-ae','العربية (الإمارات)'),
+                ('ar-eg','العربية (مصر)'),
+                ('he-il','עברית (ישראל)'),
+                ('fa-ir','فارسی (ایران)'),
+                ('th-th','ภาษาไทย (ประเทศไทย)'),
+                ('id-id','Bahasa Indonesia (Indonesia)'),
+                ('ms-my','Bahasa Melayu (Malaysia)'),
+                ('vi-vn','Tiếng Việt (Việt Nam)'),
+                ('hi-in','हिन्दी (भारत)'),
+                ('bn-in','বাংলা (ভারত)'),
+                ('ta-in','தமிழ் (இந்தியா)'),
+                ('ur-pk','اردو (پاکستان)'),
+                ('af-za','Afrikaans (Suid-Afrika)'),
+                ('sw-ke','Kiswahili (Kenya)'),
+              ] %}
+              <option value="{{ lc }}" {% if cur_locale == lc %}selected{% endif %}>{{ ln }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label" for="mb-timezone">Zeitzone</label>
+            <select class="form-select sec-input" id="mb-timezone" name="timeZone" disabled>
+              {% for tz in [
+                'UTC',
+                'W. Europe Standard Time',
+                'Central Europe Standard Time',
+                'Central European Standard Time',
+                'Eastern Europe Standard Time',
+                'GMT Standard Time',
+                'Romance Standard Time',
+                'Central Europe Standard Time',
+                'FLE Standard Time',
+                'E. Europe Standard Time',
+                'US Eastern Standard Time',
+                'Eastern Standard Time',
+                'US Central Standard Time',
+                'Central Standard Time',
+                'US Mountain Standard Time',
+                'Mountain Standard Time',
+                'US Pacific Standard Time',
+                'Pacific Standard Time',
+                'Alaskan Standard Time',
+                'Hawaii-Aleutian Standard Time',
+                'SA Eastern Standard Time',
+                'E. South America Standard Time',
+                'Argentina Standard Time',
+                'Greenland Standard Time',
+                'Newfoundland Standard Time',
+                'Atlantic Standard Time',
+                'AUS Eastern Standard Time',
+                'New Zealand Standard Time',
+                'India Standard Time',
+                'China Standard Time',
+                'Tokyo Standard Time',
+                'Korea Standard Time',
+                'Singapore Standard Time',
+                'SE Asia Standard Time',
+                'Russian Standard Time',
+                'Arab Standard Time',
+                'Arabic Standard Time',
+                'GTB Standard Time',
+                'Turkey Standard Time',
+                'Israel Standard Time',
+                'South Africa Standard Time',
+                'West Africa Standard Time',
+                'Cape Verde Standard Time',
+                'Azerbaijan Standard Time',
+                'Georgian Standard Time',
+                'Caucasus Standard Time',
+                'Pakistan Standard Time',
+                'Bangladesh Standard Time',
+              ] %}
+              <option value="{{ tz }}" {% if mb_tz == tz %}selected{% endif %}>{{ tz }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="ms-btn ms-btn-primary sec-submit d-none">
+          <i class="bi bi-check-lg"></i> Sprache &amp; Zeitzone speichern
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>{# /tab-pane-postfach #}
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{# TAB 3 — LIZENZEN                                                           #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<div class="tab-pane" id="tab-pane-lizenzen">
+
+  {# ── Current licenses ─────────────────────────────────────────────────── #}
+  <div class="ms-card ud-card-gap">
+    <div class="ms-card-header">
+      <i class="bi bi-key-fill"></i> Zugewiesene Lizenzen
+      {% if licenses %}
+      <span class="ms-badge ms-badge-blue ms-2">{{ licenses | length }}</span>
+      {% endif %}
+    </div>
+    <div class="ms-card-body p-0">
+      {% if licenses %}
+        {% for lic in licenses %}
+        <div class="lic-row">
+          <div class="lic-icon" style="background:#e5f2ff;color:#0078d4;">
+            <i class="bi bi-key-fill"></i>
+          </div>
+          <div class="lic-info">
+            <div class="lic-name">{{ lic.friendlyName or lic.skuPartNumber }}</div>
+            <div class="lic-sku">{{ lic.skuPartNumber }}</div>
+          </div>
+          <form method="post"
+                action="/admin/m365/users/{{ profile.id }}/license/remove">
+            <input type="hidden" name="sku_id" value="{{ lic.skuId }}">
+            <button type="submit" class="ms-btn ms-btn-danger ms-btn-sm"
+                    onclick="return confirm('Lizenz \'{{ lic.friendlyName or lic.skuPartNumber }}\' wirklich entfernen?')">
+              <i class="bi bi-trash3"></i> Entfernen
+            </button>
+          </form>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="px-4 py-3 text-muted small">
+          <i class="bi bi-info-circle me-1"></i> Keine Lizenzen zugewiesen.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Add license ──────────────────────────────────────────────────────── #}
+  {% set assigned_sku_ids = licenses | map(attribute='skuId') | list %}
+  {% set available = all_licenses | selectattr('skuId', 'not in', assigned_sku_ids) | list %}
+
+  <div class="ms-card ud-card-gap">
+    <div class="ms-card-header">
+      <i class="bi bi-plus-circle-fill"></i> Lizenz hinzufügen
+    </div>
+    <div class="ms-card-body p-0">
+      {% if available %}
+        {% for al in available %}
+          {% set free_units = (al.totalUnits | int) - (al.consumedUnits | int) %}
+          <div class="lic-row">
+            <div class="lic-icon" style="background:#f3f2f1;color:#323130;">
+              <i class="bi bi-box-seam"></i>
+            </div>
+            <div class="lic-info">
+              <div class="lic-name">{{ al.friendlyName or al.skuPartNumber or al.skuId }}</div>
+              <div class="lic-sku">{{ al.skuPartNumber or al.skuId }}</div>
+            </div>
+            {# Availability badge #}
+            {% if free_units > 10 %}
+              <span class="ms-badge ms-badge-green">{{ free_units }} frei</span>
+            {% elif free_units > 0 %}
+              <span class="ms-badge ms-badge-yellow">{{ free_units }} frei</span>
+            {% else %}
+              <span class="ms-badge ms-badge-red">Keine verfügbar</span>
+            {% endif %}
+            <form method="post"
+                  action="/admin/m365/users/{{ profile.id }}/license/add">
+              <input type="hidden" name="sku_id" value="{{ al.skuId }}">
+              <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm"
+                      {% if free_units <= 0 %}disabled{% endif %}>
+                <i class="bi bi-plus-lg"></i> Zuweisen
+              </button>
+            </form>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="px-4 py-3 text-muted small">
+          <i class="bi bi-check-circle me-1 text-success"></i>
+          Alle verfügbaren Lizenzen sind bereits zugewiesen.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>{# /tab-pane-lizenzen #}
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{# TAB 4 — GRUPPEN                                                            #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<div class="tab-pane" id="tab-pane-gruppen">
+
+  {# ── Current memberships ──────────────────────────────────────────────── #}
+  <div class="ms-card ud-card-gap">
+    <div class="ms-card-header">
+      <i class="bi bi-diagram-3-fill"></i> Aktuelle Mitgliedschaften
+      {% if memberships %}
+      <span class="ms-badge ms-badge-blue ms-2">{{ memberships | length }}</span>
+      {% endif %}
+    </div>
+    <div class="ms-card-body p-0">
+      {% if memberships %}
+        {% for grp in memberships %}
+          {% set is_team = 'Unified' in grp.groupTypes %}
+          <div class="grp-row">
+            <div class="grp-icon"
+                 style="background: {% if is_team %}#e5f2ff{% else %}#f3f2f1{% endif %};
+                        color: {% if is_team %}#0078d4{% else %}#323130{% endif %};">
+              <i class="bi {% if is_team %}bi-microsoft-teams{% else %}bi-people-fill{% endif %}"></i>
+            </div>
+            <div class="grp-info">
+              <div class="grp-name">{{ grp.displayName }}</div>
+              <div class="grp-mail">{{ grp.mail or ('Microsoft 365 Gruppe' if is_team else 'Sicherheitsgruppe') }}</div>
+            </div>
+            <form method="post"
+                  action="/admin/m365/users/{{ profile.id }}/group/remove">
+              <input type="hidden" name="group_id" value="{{ grp.id }}">
+              <button type="submit" class="ms-btn ms-btn-danger ms-btn-sm"
+                      onclick="return confirm('Aus Gruppe \'{{ grp.displayName }}\' entfernen?')">
+                <i class="bi bi-person-dash"></i> Entfernen
+              </button>
+            </form>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="px-4 py-3 text-muted small">
+          <i class="bi bi-info-circle me-1"></i> Keine Gruppenmitgliedschaften.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Add to group ─────────────────────────────────────────────────────── #}
+  {% set member_ids = memberships | map(attribute='id') | list %}
+  {% set addable_groups = all_groups | rejectattr('id', 'in', member_ids) | list %}
+
+  <div class="ms-card ud-card-gap">
+    <div class="ms-card-header">
+      <i class="bi bi-plus-circle-fill"></i> Zu Gruppe hinzufügen
+    </div>
+    <div class="ms-card-body">
+      <input type="text" id="grp-search-input"
+             placeholder="Gruppe suchen…"
+             oninput="filterGroups(this.value)">
+
+      <div id="grp-add-list" style="max-height: 420px; overflow-y: auto;">
+        {% if addable_groups %}
+          {% for ag in addable_groups %}
+          <div class="grp-row grp-addable-row" data-grp-name="{{ ag.displayName | lower }}">
+            <div class="grp-icon" style="background:#f3f2f1;color:#323130;">
+              <i class="bi bi-people-fill"></i>
+            </div>
+            <div class="grp-info">
+              <div class="grp-name">{{ ag.displayName }}</div>
+              <div class="grp-mail text-muted">{{ ag.id }}</div>
+            </div>
+            <form method="post"
+                  action="/admin/m365/users/{{ profile.id }}/group/add">
+              <input type="hidden" name="group_id" value="{{ ag.id }}">
+              <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm">
+                <i class="bi bi-person-plus"></i> Hinzufügen
+              </button>
+            </form>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted small mt-2">
+            <i class="bi bi-check-circle me-1 text-success"></i>
+            Benutzer ist bereits in allen verfügbaren Gruppen.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>{# /tab-pane-gruppen #}
+
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+{# TAB 5 — POSTFACH-FREIGABE                                                  #}
+{# ═══════════════════════════════════════════════════════════════════════════ #}
+<div class="tab-pane" id="tab-pane-freigabe">
+
+  <div class="ms-info-alert ud-card-gap mb-3">
+    <i class="bi bi-info-circle-fill" style="flex-shrink:0;margin-top:1px;"></i>
+    <div>
+      Diese Berechtigungen werden über <strong>Exchange Online</strong> verwaltet und sind nicht direkt
+      über die Graph API v1.0 verfügbar. Die Konfiguration erfolgt im Exchange Admin Center.
+    </div>
+  </div>
+
+  <div class="ms-card">
+    <div class="ms-card-header">
+      <i class="bi bi-shield-lock-fill"></i> Postfach-Berechtigungen
+    </div>
+    <div class="ms-card-body">
+
+      {# Vollzugriff #}
+      <div class="perm-row">
+        <div class="perm-icon" style="background:#e5f2ff;color:#0078d4;">
+          <i class="bi bi-folder2-open" style="font-size:16px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13.5px;">Vollzugriff (Full Access)</div>
+          <div class="text-muted" style="font-size:12.5px;">
+            Erlaubt das vollständige Lesen und Verwalten des Postfachs. Der Benutzer kann im Namen des
+            Postfachinhabers E-Mails lesen, verschieben und löschen.
+          </div>
+        </div>
+        <div>
+          <span class="ms-badge ms-badge-gray me-2">Delegiert</span>
+          <a href="https://admin.exchange.microsoft.com"
+             target="_blank" rel="noopener noreferrer"
+             class="ms-btn ms-btn-secondary ms-btn-sm">
+            <i class="bi bi-box-arrow-up-right"></i> Exchange Admin Center
+          </a>
+        </div>
+      </div>
+
+      {# Im Auftrag senden #}
+      <div class="perm-row">
+        <div class="perm-icon" style="background:#fff4ce;color:#6a4d00;">
+          <i class="bi bi-send" style="font-size:16px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13.5px;">Im Auftrag senden (Send on Behalf)</div>
+          <div class="text-muted" style="font-size:12.5px;">
+            E-Mails werden mit dem Zusatz „im Auftrag von &lt;Postfachinhaber&gt;" gesendet.
+            Der tatsächliche Absender ist für Empfänger sichtbar.
+          </div>
+        </div>
+        <div>
+          <span class="ms-badge ms-badge-gray me-2">Delegiert</span>
+          <a href="https://admin.exchange.microsoft.com"
+             target="_blank" rel="noopener noreferrer"
+             class="ms-btn ms-btn-secondary ms-btn-sm">
+            <i class="bi bi-box-arrow-up-right"></i> Exchange Admin Center
+          </a>
+        </div>
+      </div>
+
+      {# Als Benutzer senden #}
+      <div class="perm-row">
+        <div class="perm-icon" style="background:#dff6dd;color:#107c10;">
+          <i class="bi bi-person-check-fill" style="font-size:16px;"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:13.5px;">Als Benutzer senden (Send As)</div>
+          <div class="text-muted" style="font-size:12.5px;">
+            E-Mails werden direkt als dieser Benutzer gesendet. Für Empfänger ist kein Unterschied
+            zum regulären Versand sichtbar.
+          </div>
+        </div>
+        <div>
+          <span class="ms-badge ms-badge-gray me-2">Delegiert</span>
+          <a href="https://admin.exchange.microsoft.com"
+             target="_blank" rel="noopener noreferrer"
+             class="ms-btn ms-btn-secondary ms-btn-sm">
+            <i class="bi bi-box-arrow-up-right"></i> Exchange Admin Center
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>{# /tab-pane-freigabe #}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* Tab switching                                                              */
+/* ══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  var TAB_KEY = 'ud_active_tab_{{ profile.id }}';
+
+  function activateTab(tabId) {
+    // Buttons
+    document.querySelectorAll('#ud-tab-bar .ms-tab').forEach(function (btn) {
+      btn.classList.toggle('tab-active', btn.dataset.tab === tabId);
+    });
+    // Panes
+    document.querySelectorAll('.tab-pane').forEach(function (pane) {
+      pane.classList.toggle('active', pane.id === 'tab-pane-' + tabId);
+    });
+    try { sessionStorage.setItem(TAB_KEY, tabId); } catch (e) {}
+  }
+
+  // Wire buttons
+  document.querySelectorAll('#ud-tab-bar .ms-tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      activateTab(this.dataset.tab);
+    });
+  });
+
+  // Determine initial tab: template var > sessionStorage > default
+  var initialTab = '{{ active_tab | default("konto") }}';
+  try {
+    var stored = sessionStorage.getItem(TAB_KEY);
+    // Only use stored if template doesn't force a specific tab
+    if ('{{ active_tab | default("") }}' === '' && stored) {
+      initialTab = stored;
+    }
+  } catch (e) {}
+
+  activateTab(initialTab);
+})();
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* OOO chip selection                                                         */
+/* ══════════════════════════════════════════════════════════════════════════ */
+function selectOooChip(btn) {
+  document.querySelectorAll('.ooo-chip[data-ooo]').forEach(function (c) {
+    c.classList.remove('selected');
+  });
+  btn.classList.add('selected');
+  var val = btn.dataset.ooo;
+  document.getElementById('ooo-status-input').value = val;
+  var block = document.getElementById('ooo-scheduled-block');
+  if (block) {
+    block.style.display = (val === 'scheduled') ? 'flex' : 'none';
+  }
+}
+
+function selectExtChip(btn) {
+  document.querySelectorAll('.ooo-chip[data-ext]').forEach(function (c) {
+    c.classList.remove('selected');
+  });
+  btn.classList.add('selected');
+  document.getElementById('ext-audience-input').value = btn.dataset.ext;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* Forwarding toggle                                                           */
+/* ══════════════════════════════════════════════════════════════════════════ */
+function toggleFwdBlock(enabled) {
+  var block = document.getElementById('fwd-detail-block');
+  if (block) block.style.display = enabled ? 'block' : 'none';
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* Group search filter                                                         */
+/* ══════════════════════════════════════════════════════════════════════════ */
+function filterGroups(query) {
+  var q = (query || '').toLowerCase().trim();
+  document.querySelectorAll('.grp-addable-row').forEach(function (row) {
+    var name = (row.dataset.grpName || '').toLowerCase();
+    row.style.display = (q === '' || name.indexOf(q) !== -1) ? '' : 'none';
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* Auto-dismiss alerts after 6 seconds                                        */
+/* ══════════════════════════════════════════════════════════════════════════ */
+(function () {
+  var alerts = document.querySelectorAll('.ms-alert-success, .ms-alert-danger');
+  alerts.forEach(function (el) {
+    setTimeout(function () {
+      if (el && el.parentNode) {
+        el.style.transition = 'opacity .4s';
+        el.style.opacity = '0';
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
+      }
+    }, 6000);
+  });
+})();
+</script>
+{% endblock %}

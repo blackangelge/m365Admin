@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Gelöschte Gruppen — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title"><i class="bi bi-diagram-3 me-2 text-primary" style="font-size:18px;"></i>Gelöschte Gruppen</h1>
+  <a href="/admin/m365/groups/deleted" class="ms-btn ms-btn-secondary ms-btn-sm"><i class="bi bi-arrow-clockwise"></i> Aktualisieren</a>
+</div>
+
+{% if graph_error %}
+<div class="ms-alert ms-alert-danger mb-4">
+  <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;margin-top:1px;"></i>
+  <div><strong>Graph API Fehler</strong><br>{{ graph_error }}<br><br>
+  <strong>Benötigte Berechtigung:</strong> <code>Group.Read.All</code> oder <code>Directory.Read.All</code> (Application)</div>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+<div class="ms-card">
+  <div class="ms-card-header"><i class="bi bi-diagram-3"></i> Gelöschte Gruppen (30-Tage-Papierkorb) {% if groups %}<span class="ms-badge ms-badge-gray ms-2">{{ groups|length }}</span>{% endif %}</div>
+  <div class="ms-table-wrap">
+    <table class="table datatable mb-0">
+      <thead>
+        <tr><th>Name</th><th>Gelöscht am</th></tr>
+      </thead>
+      <tbody>
+        {% for g in groups %}
+        <tr>
+          <td class="fw-semibold">{{ g.displayName }}</td>
+          <td class="small text-muted">{{ (g.deletedDateTime or '')[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

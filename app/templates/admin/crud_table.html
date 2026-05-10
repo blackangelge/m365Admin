@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ table_name }} — CRUD — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title">
+    <a href="/admin/crud" class="text-decoration-none text-muted me-1" style="font-size:14px;">CRUD</a>
+    <span class="text-muted me-1">/</span>
+    <i class="bi bi-table me-2 text-primary" style="font-size:16px;"></i>{{ table_name }}
+  </h1>
+</div>
+
+<div class="row g-3 mb-3">
+  <!-- Table list sidebar -->
+  <div class="col-lg-2">
+    <div class="ms-card p-0">
+      <div class="ms-card-header"><i class="bi bi-list-ul"></i> Tabellen</div>
+      <div class="p-1">
+        {% for t in all_tables %}
+        <a href="/admin/crud/{{ t }}"
+           class="d-block px-3 py-2 text-decoration-none rounded"
+           style="font-size:12.5px;{% if t == table_name %}background:#deecf9;color:#004578;font-weight:600;{% else %}color:#323130;{% endif %}">
+          {{ t }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Table data -->
+  <div class="col-lg-10">
+    {% if msg %}
+    <div class="ms-alert ms-alert-success mb-3">
+      <i class="bi bi-check-circle-fill"></i> {{ msg }}
+      <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+    {% if error %}
+    <div class="ms-alert ms-alert-danger mb-3">
+      <i class="bi bi-exclamation-circle-fill"></i> {{ error }}
+      <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+
+    <div class="ms-card">
+      <div class="ms-card-header">
+        <i class="bi bi-table"></i> {{ table_name }}
+        <span class="ms-badge ms-badge-blue ms-2">{{ rows|length }} Zeilen</span>
+        <span class="ms-badge ms-badge-gray ms-1">PK: {{ pk_col }}</span>
+      </div>
+      <div class="ms-table-wrap">
+        <table class="table datatable mb-0" id="crud-dt">
+          <thead>
+            <tr>
+              {% for col in col_names %}<th>{{ col }}</th>{% endfor %}
+              <th class="no-sort" style="width:100px;">Aktionen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              {% for cell in row %}
+              <td class="small text-truncate" style="max-width:200px;" title="{{ cell }}">
+                {% if cell is none %}
+                <span class="text-muted">NULL</span>
+                {% else %}
+                {{ cell }}
+                {% endif %}
+              </td>
+              {% endfor %}
+              <td>
+                <div class="d-flex gap-1">
+                  <!-- Edit button -->
+                  <button class="ms-btn ms-btn-sm ms-btn-secondary"
+                          onclick="openEdit({{ row | tojson }}, '{{ pk_col }}')"
+                          title="Bearbeiten">
+                    <i class="bi bi-pencil-fill"></i>
+                  </button>
+                  <!-- Delete button -->
+                  <form method="post" action="/admin/crud/{{ table_name }}/delete"
+                        onsubmit="return confirm('Zeile wirklich löschen?')">
+                    <input type="hidden" name="__pk_col" value="{{ pk_col }}">
+                    <input type="hidden" name="__pk_val" value="{{ row[col_names.index(pk_col)] }}">
+                    <button type="submit" class="ms-btn ms-btn-sm ms-btn-danger" title="Löschen">
+                      <i class="bi bi-trash3-fill"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" action="/admin/crud/{{ table_name }}/update">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-pencil-fill me-2"></i>Zeile bearbeiten</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="edit-fields">
+          <!-- Filled by JS -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="ms-btn ms-btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="ms-btn ms-btn-primary"><i class="bi bi-save me-1"></i>Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const COL_NAMES = {{ col_names | tojson }};
+
+function openEdit(rowData, pkCol) {
+  const container = document.getElementById('edit-fields');
+  container.innerHTML = '';
+
+  const pkInput = document.createElement('input');
+  pkInput.type = 'hidden'; pkInput.name = '__pk_col'; pkInput.value = pkCol;
+  container.appendChild(pkInput);
+
+  const pkValInput = document.createElement('input');
+  pkValInput.type = 'hidden'; pkValInput.name = '__pk_val';
+  pkValInput.value = rowData[COL_NAMES.indexOf(pkCol)];
+  container.appendChild(pkValInput);
+
+  COL_NAMES.forEach((col, i) => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mb-3';
+
+    const label = document.createElement('label');
+    label.className = 'form-label';
+    label.textContent = col;
+    if (col === pkCol) label.innerHTML += ' <span class="ms-badge ms-badge-gray">PK</span>';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-control';
+    input.name = col;
+    input.value = rowData[i] !== null ? rowData[i] : '';
+    if (col === pkCol) input.setAttribute('readonly', '');
+
+    wrapper.appendChild(label);
+    wrapper.appendChild(input);
+    container.appendChild(wrapper);
+  });
+
+  new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+</script>
+{% endblock %}

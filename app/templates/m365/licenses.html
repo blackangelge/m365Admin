@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Lizenzen — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title"><i class="bi bi-award-fill me-2 text-primary" style="font-size:18px;"></i>Lizenzen</h1>
+  <a href="/admin/m365/licenses" class="ms-btn ms-btn-secondary ms-btn-sm"><i class="bi bi-arrow-clockwise"></i> Aktualisieren</a>
+</div>
+
+{% if graph_error %}
+<div class="ms-alert ms-alert-danger mb-4">
+  <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;margin-top:1px;"></i>
+  <div><strong>Graph API Fehler</strong><br>{{ graph_error }}<br><br>
+  <strong>Benötigte Berechtigung:</strong> <code>Organization.Read.All</code> (Application)</div>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+<div class="ms-card">
+  <div class="ms-card-header"><i class="bi bi-award-fill"></i> Abonnierte Lizenzen {% if licenses %}<span class="ms-badge ms-badge-blue ms-2">{{ licenses|length }}</span>{% endif %}</div>
+  <div class="ms-table-wrap">
+    <table class="table datatable mb-0">
+      <thead>
+        <tr><th>SKU / Produkt</th><th>Gesamt</th><th>Belegt</th><th>Verfügbar</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for lic in licenses %}
+        {% set total = lic.prepaidUnits.enabled if lic.prepaidUnits else 0 %}
+        {% set used = lic.consumedUnits or 0 %}
+        {% set avail = total - used %}
+        <tr>
+          <td class="fw-semibold">{{ lic.skuPartNumber }}</td>
+          <td>{{ total }}</td>
+          <td>{{ used }}</td>
+          <td>
+            {% if avail > 0 %}
+            <span class="ms-badge ms-badge-green">{{ avail }}</span>
+            {% elif avail == 0 %}
+            <span class="ms-badge ms-badge-yellow">0 — Voll</span>
+            {% else %}
+            <span class="ms-badge ms-badge-red">{{ avail }} — Überbelegt</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if lic.capabilityStatus == 'Enabled' %}
+            <span class="ms-badge ms-badge-green">Aktiv</span>
+            {% elif lic.capabilityStatus == 'Warning' %}
+            <span class="ms-badge ms-badge-yellow">Warnung</span>
+            {% elif lic.capabilityStatus == 'Suspended' %}
+            <span class="ms-badge ms-badge-red">Gesperrt</span>
+            {% else %}
+            <span class="ms-badge ms-badge-gray">{{ lic.capabilityStatus }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 fw-bold">Dashboard</h1>
+  <p class="text-muted">Willkommen, <strong>{{ user.display_name }}</strong>!</p>
+</div>
+
+{% if not user.has_permissions %}
+<div class="card border-warning border-0 shadow-sm mb-4">
+  <div class="card-body d-flex align-items-center gap-3 py-4">
+    <span class="text-warning fs-2"><i class="bi bi-lock-fill"></i></span>
+    <div>
+      <h5 class="mb-1 fw-semibold">Kein Zugriff</h5>
+      <p class="mb-0 text-muted small">Dir wurden noch keine Zugriffsrechte zugewiesen. Bitte wende dich an einen Administrator.</p>
+    </div>
+  </div>
+</div>
+{% else %}
+
+{% set cards = [
+  {
+    "icon": "bi-people-fill",
+    "title": "Mitarbeiter",
+    "text": "Mitarbeiterkonten verwalten, Rechte vergeben und Aktivität einsehen.",
+    "link": "/admin/users",
+    "available": user.is_admin
+  },
+  {
+    "icon": "bi-key-fill",
+    "title": "Rechteverwaltung",
+    "text": "Zugriffsrechte erstellen und Mitarbeitern zuweisen.",
+    "link": "/admin/permissions",
+    "available": user.is_admin
+  },
+  {
+    "icon": "bi-person-circle",
+    "title": "Mein Konto",
+    "text": "Eigene Anmeldedaten und zugewiesene Rechte einsehen.",
+    "link": "/me",
+    "available": true
+  },
+  {
+    "icon": "bi-journal-text",
+    "title": "Meine Logs",
+    "text": "Eigene Aktivitätsprotokolle und Anmeldeverlauf abrufen.",
+    "link": "/me/logs",
+    "available": true
+  },
+] %}
+
+<div class="row g-4">
+  {% for card in cards %}
+  {% if card.available %}
+  <div class="col-sm-6 col-xl-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body d-flex flex-column">
+        <div class="mb-3">
+          <span class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width:3rem;height:3rem;">
+            <i class="bi {{ card.icon }} fs-5"></i>
+          </span>
+        </div>
+        <h5 class="card-title fw-semibold">{{ card.title }}</h5>
+        <p class="card-text text-muted small flex-grow-1">{{ card.text }}</p>
+        <a href="{{ card.link }}" class="btn btn-primary btn-sm align-self-start mt-2">
+          Öffnen <i class="bi bi-arrow-right ms-1"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<div class="card border-0 shadow-sm mt-4">
+  <div class="card-body">
+    <h5 class="card-title fw-semibold"><i class="bi bi-info-circle me-2 text-primary"></i>Anmeldeinformationen</h5>
+    <dl class="row mb-0 small">
+      <dt class="col-sm-3 text-muted">E-Mail</dt>
+      <dd class="col-sm-9">{{ user.email }}</dd>
+      <dt class="col-sm-3 text-muted">Rolle</dt>
+      <dd class="col-sm-9">
+        {% if user.is_admin %}
+        <span class="badge bg-danger"><i class="bi bi-shield-fill me-1"></i>Administrator</span>
+        {% else %}
+        <span class="badge bg-secondary">Benutzer</span>
+        {% endif %}
+      </dd>
+      {% if user.permissions %}
+      <dt class="col-sm-3 text-muted">Rechte</dt>
+      <dd class="col-sm-9">
+        {% for p in user.permissions %}
+        <span class="badge bg-primary me-1">{{ p.label }}</span>
+        {% endfor %}
+      </dd>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

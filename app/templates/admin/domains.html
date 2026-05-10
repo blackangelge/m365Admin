@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Domains — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title"><i class="bi bi-globe2 me-2 text-primary" style="font-size:18px;"></i>Domains</h1>
+  <form method="post" action="/admin/domains/refresh" class="d-inline">
+    <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm">
+      <i class="bi bi-arrow-clockwise"></i> Synchronisieren
+    </button>
+  </form>
+</div>
+
+{% if error %}
+<div class="ms-alert ms-alert-danger mb-4">
+  <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;margin-top:1px;"></i>
+  <div>
+    <strong>Fehler</strong><br>{{ error }}<br><br>
+    <strong>Benötigte App-Berechtigung (Application):</strong>
+    <code>Domain.Read.All</code><br>
+    <small class="text-muted">Azure AD → App-Registrierungen → API-Berechtigungen → Anwendungsberechtigungen → Adminzustimmung erteilen</small>
+  </div>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+{% if msg %}
+<div class="ms-alert ms-alert-success mb-4">
+  <i class="bi bi-check-circle-fill"></i> {{ msg }}
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+{% if not domains %}
+<div class="ms-alert mb-4" style="background:#f0f6ff;border-color:#0078d4;color:#004578;">
+  <i class="bi bi-info-circle-fill" style="flex-shrink:0;color:#0078d4;"></i>
+  <div>Noch keine Domains synchronisiert. Klicke auf <strong>Synchronisieren</strong>, um Domains aus dem Microsoft 365 Tenant zu laden.</div>
+</div>
+{% endif %}
+
+<div class="ms-card">
+  <div class="ms-card-header">
+    <i class="bi bi-globe2"></i> Tenant-Domains
+    {% set active_count = domains | selectattr('is_deleted', 'equalto', False) | list | length %}
+    {% set deleted_count = domains | selectattr('is_deleted', 'equalto', True) | list | length %}
+    {% if domains %}
+    <span class="ms-badge ms-badge-blue ms-2">{{ active_count }} aktiv</span>
+    {% if deleted_count %}
+    <span class="ms-badge ms-badge-gray ms-1">{{ deleted_count }} entfernt</span>
+    {% endif %}
+    {% endif %}
+  </div>
+  <div class="ms-table-wrap">
+    <table class="table datatable mb-0">
+      <thead>
+        <tr>
+          <th>Domain</th>
+          <th>Typ</th>
+          <th>Verifiziert</th>
+          <th>Standard</th>
+          <th>Authentifizierung</th>
+          <th>Status</th>
+          <th>Zuletzt synchronisiert</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in domains %}
+        <tr{% if d.is_deleted %} class="text-muted" style="opacity:.6;"{% endif %}>
+          <td class="fw-semibold">
+            {% if d.is_deleted %}<s>{{ d.name }}</s>{% else %}{{ d.name }}{% endif %}
+          </td>
+          <td>
+            {% if 'onmicrosoft.com' in d.name %}
+            <span class="ms-badge ms-badge-gray">onmicrosoft.com</span>
+            {% else %}
+            <span class="ms-badge ms-badge-blue">Custom</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if d.is_verified %}
+            <span class="ms-badge ms-badge-green"><i class="bi bi-check-lg"></i> Ja</span>
+            {% else %}
+            <span class="ms-badge ms-badge-yellow"><i class="bi bi-hourglass-split"></i> Ausstehend</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if d.is_default %}
+            <span class="ms-badge ms-badge-blue"><i class="bi bi-star-fill"></i> Standard</span>
+            {% else %}
+            <span class="text-muted small">—</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ d.authentication_type or '—' }}</td>
+          <td>
+            {% if d.is_deleted %}
+            <span class="ms-badge ms-badge-gray"><i class="bi bi-trash3"></i> Entfernt</span>
+            {% elif d.is_verified %}
+            <span class="ms-badge ms-badge-green"><i class="bi bi-circle-fill" style="font-size:7px;"></i> Aktiv</span>
+            {% else %}
+            <span class="ms-badge ms-badge-yellow">Ausstehend</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">
+            {% if d.synced_at %}{{ d.synced_at.strftime('%d.%m.%Y %H:%M') }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="text-muted small mt-3">
+  <i class="bi bi-info-circle me-1"></i>
+  Entfernte Domains bleiben im System gespeichert (Soft-Delete) und werden für die Rechteverwaltung benötigt.
+  Sie werden automatisch wiederhergestellt, wenn sie wieder im Tenant erscheinen.
+</p>
+{% endblock %}

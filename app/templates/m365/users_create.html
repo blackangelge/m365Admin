@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+{% block title %}Benutzer hinzufügen — M365 Admin{% endblock %}
+
+{% block head %}
+<style>
+/* ── Wizard progress bar ─────────────────────────────────────────────────── */
+.wiz-bar {
+  display: flex;
+  background: #fff;
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.wiz-step {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 20px;
+  border-right: 1px solid #edebe9;
+  background: #faf9f8;
+  color: #605e5c;
+  font-size: 13px;
+  cursor: default;
+  transition: background .15s;
+}
+.wiz-step:last-child { border-right: none; }
+.wiz-step.wiz-active  { background: #fff; color: #0078d4; font-weight: 600; }
+.wiz-step.wiz-done    { background: #fff; color: #107c10; font-weight: 400; }
+.wiz-num {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+  background: #edebe9; color: #605e5c;
+  transition: background .15s, color .15s;
+}
+.wiz-active .wiz-num  { background: #0078d4; color: #fff; }
+.wiz-done   .wiz-num  { background: #107c10; color: #fff; }
+
+/* ── License option cards ────────────────────────────────────────────────── */
+.lic-option {
+  border: 1px solid #edebe9;
+  border-radius: 4px;
+  padding: 13px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color .1s, background .1s;
+}
+.lic-option:hover { border-color: #c8c6c4; }
+.lic-option input[type=radio]:checked ~ .lic-inner { color: #0078d4; }
+.lic-option:has(input[type=radio]:checked) {
+  border-color: #0078d4;
+  background: #f0f6fc;
+}
+.lic-title { font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.lic-desc  { font-size: 12px; color: #605e5c; padding-left: 22px; }
+
+/* ── SKU rows ────────────────────────────────────────────────────────────── */
+.sku-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid #f3f2f1;
+}
+.sku-row:last-child { border-bottom: none; }
+.sku-row input { margin-top: 2px; flex-shrink: 0; }
+.sku-name { font-weight: 600; font-size: 13px; color: #323130; }
+.sku-avail { font-size: 12px; margin-top: 2px; }
+.sku-avail.ok  { color: #107c10; }
+.sku-avail.low { color: #797600; }
+.sku-avail.out { color: #a80000; }
+
+/* ── Password area ───────────────────────────────────────────────────────── */
+.pw-generated {
+  font-family: 'Consolas', monospace;
+  background: #f3f2f1;
+  border: 1px solid #edebe9;
+  border-radius: 2px;
+  padding: 8px 12px;
+  font-size: 13px;
+  letter-spacing: .04em;
+  color: #323130;
+  word-break: break-all;
+  display: none;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title">
+    <i class="bi bi-person-plus-fill me-2 text-primary" style="font-size:18px;"></i>Benutzer hinzufügen
+  </h1>
+  <a href="/admin/m365/users" class="ms-btn ms-btn-secondary ms-btn-sm">
+    <i class="bi bi-x-lg me-1"></i>Abbrechen
+  </a>
+</div>
+
+{% if error %}
+<div class="ms-alert ms-alert-danger mb-3">
+  <i class="bi bi-exclamation-circle-fill" style="flex-shrink:0;"></i>
+  <span>{{ error }}</span>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+{% if graph_error %}
+<div class="ms-alert ms-alert-danger mb-4" style="border-color:#797600;background:#fff4ce;color:#4a3800;">
+  <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;color:#797600;"></i>
+  <div><strong>Graph API teilweise nicht verfügbar</strong><br>{{ graph_error }}<br>
+  <small>Benötigte Berechtigungen: <code>User.ReadWrite.All</code>, <code>Domain.Read.All</code>, <code>Organization.Read.All</code></small></div>
+</div>
+{% endif %}
+
+<!-- ── Step progress bar ──────────────────────────────────────────────────── -->
+<div class="wiz-bar">
+  <div class="wiz-step wiz-active" id="wi-1">
+    <span class="wiz-num">1</span>
+    <span>Grundlagen</span>
+  </div>
+  <div class="wiz-step" id="wi-2">
+    <span class="wiz-num">2</span>
+    <span>Produktlizenzen</span>
+  </div>
+</div>
+
+<!-- ── Form ──────────────────────────────────────────────────────────────── -->
+<form id="wiz-form" method="post" action="/admin/m365/users/create" novalidate>
+
+  <!-- ═══ STEP 1: Grundlagen ═══ -->
+  <div id="ws-1">
+    <div class="ms-card mb-3">
+      <div class="ms-card-header"><i class="bi bi-person-fill"></i> Benutzerdaten</div>
+      <div class="ms-card-body">
+        <div class="row g-3">
+
+          <!-- Vorname / Nachname -->
+          <div class="col-md-6">
+            <label class="form-label" for="first_name">Vorname</label>
+            <input type="text" class="form-control" id="first_name" name="first_name"
+                   placeholder="Max" autocomplete="off">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="last_name">Nachname</label>
+            <input type="text" class="form-control" id="last_name" name="last_name"
+                   placeholder="Mustermann" autocomplete="off">
+          </div>
+
+          <!-- Anzeigename -->
+          <div class="col-12">
+            <label class="form-label" for="display_name">
+              Anzeigename <span class="text-danger">*</span>
+            </label>
+            <input type="text" class="form-control" id="display_name" name="display_name"
+                   placeholder="Max Mustermann" required autocomplete="off">
+          </div>
+
+          <!-- Benutzername @ Domain -->
+          <div class="col-12">
+            <label class="form-label" for="mail_nickname">
+              Benutzername (UPN + E-Mail) <span class="text-danger">*</span>
+            </label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="mail_nickname" name="mail_nickname"
+                     placeholder="max.mustermann" required
+                     pattern="[a-zA-Z0-9._\-]+"
+                     title="Nur Buchstaben, Ziffern, Punkte, Bindestriche und Unterstriche."
+                     autocomplete="off">
+              <span class="input-group-text fw-semibold" style="background:#faf9f8;border-color:#8a8886;">@</span>
+              <select name="domain" id="domain_select" class="form-select" style="max-width:240px;border-color:#8a8886;" required>
+                {% for d in domains %}
+                <option value="{{ d.name }}">{{ d.name }}</option>
+                {% endfor %}
+                {% if not domains %}
+                <option value="">— Keine Domains —</option>
+                {% endif %}
+              </select>
+            </div>
+
+            {# UPN check feedback #}
+            <div id="upn-check" class="mt-2 d-none" style="font-size:13px;">
+              <span id="upn-check-loading" class="d-none text-muted">
+                <span class="spinner-border spinner-border-sm me-1" style="width:.75rem;height:.75rem;"></span>Prüfe Verfügbarkeit…
+              </span>
+              <span id="upn-check-free" class="d-none" style="color:#107c10;">
+                <i class="bi bi-check-circle-fill me-1"></i><strong id="upn-check-free-text"></strong> ist verfügbar.
+              </span>
+              <span id="upn-check-taken" class="d-none" style="color:#a80000;">
+                <i class="bi bi-x-circle-fill me-1"></i><strong id="upn-check-taken-text"></strong> ist bereits vergeben.
+              </span>
+              <span id="upn-check-error" class="d-none text-muted">
+                <i class="bi bi-question-circle me-1"></i><span id="upn-check-error-text"></span>
+              </span>
+            </div>
+
+            {% if not domains %}
+            <div class="form-text" style="color:#a80000;">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Keine Domains verfügbar — bitte zuerst unter <a href="/admin/domains">Administration → Domains</a> synchronisieren.
+            </div>
+            {% else %}
+            <div class="form-text" id="upn-hint">Nur Buchstaben, Ziffern, Punkte, Bindestriche und Unterstriche erlaubt.</div>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Password card -->
+    <div class="ms-card mb-3">
+      <div class="ms-card-header"><i class="bi bi-key-fill"></i> Passwort</div>
+      <div class="ms-card-body">
+
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="auto_password" name="auto_password"
+                 checked onchange="onAutoPasswordChange(this.checked)">
+          <label class="form-check-label fw-semibold" for="auto_password">
+            Passwort automatisch generieren
+          </label>
+        </div>
+
+        <!-- Manual password input (hidden when auto is checked) -->
+        <div id="pw-manual" class="mb-3 d-none">
+          <label class="form-label" for="temp_password">Temporäres Passwort</label>
+          <input type="text" class="form-control font-monospace" id="temp_password" name="temp_password"
+                 placeholder="Mind. 8 Zeichen, Groß-/Kleinbuchstaben, Ziffern, Sonderzeichen"
+                 autocomplete="new-password">
+          <div class="form-text">
+            Azure-Anforderungen: ≥ 8 Zeichen · Großbuchstabe · Kleinbuchstabe · Ziffer · Sonderzeichen
+          </div>
+        </div>
+
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="force_change_password"
+                 name="force_change_password" checked>
+          <label class="form-check-label" for="force_change_password">
+            Passwort bei erster Anmeldung ändern erforderlich
+          </label>
+        </div>
+
+      </div>
+    </div>
+  </div><!-- /step 1 -->
+
+
+  <!-- ═══ STEP 2: Produktlizenzen ═══ -->
+  <div id="ws-2" class="d-none">
+    <div class="ms-card mb-3">
+      <div class="ms-card-header"><i class="bi bi-award-fill"></i> Produktlizenzen</div>
+      <div class="ms-card-body">
+
+        <!-- Option A: assign license -->
+        <label class="lic-option d-block">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <input type="radio" name="license_mode" value="assign" checked
+                   onchange="toggleLicenseList(this.value)">
+            <span class="fw-semibold" style="font-size:13px;">Produktlizenz zuweisen</span>
+          </div>
+          <div class="lic-desc">Weise dem Benutzer eine oder mehrere Produktlizenzen aus diesem Mandanten zu.</div>
+        </label>
+
+        <!-- SKU list (shown when "assign" is selected) -->
+        <div id="sku-list" class="ms-card mb-3 mt-2 p-3" style="background:#faf9f8;">
+          {% if licenses %}
+            {% for lic in licenses %}
+            {% set avail = lic.availableUnits %}
+            <div class="sku-row">
+              <input type="checkbox" class="form-check-input"
+                     name="license_sku_ids" value="{{ lic.skuId }}"
+                     id="sku-{{ loop.index }}"
+                     {% if avail <= 0 %}title="Keine freien Lizenzen"{% endif %}>
+              <label for="sku-{{ loop.index }}" style="flex:1;cursor:pointer;">
+                <div class="sku-name">{{ lic.friendlyName }}</div>
+                {% if avail <= 0 %}
+                <div class="sku-avail out">
+                  Keine Lizenzen verfügbar. Falls aktiviert, versucht Microsoft eine weitere Lizenz zu erwerben.
+                </div>
+                {% elif avail <= 5 %}
+                <div class="sku-avail low">
+                  {{ avail }} von {{ lic.totalUnits }} Lizenzen verfügbar (fast aufgebraucht)
+                </div>
+                {% else %}
+                <div class="sku-avail ok">
+                  {{ avail }} von {{ lic.totalUnits }} Lizenzen verfügbar
+                </div>
+                {% endif %}
+              </label>
+            </div>
+            {% endfor %}
+          {% else %}
+          <p class="text-muted small mb-0">
+            <i class="bi bi-info-circle me-1"></i>
+            {% if graph_error %}
+              Lizenzdaten nicht verfügbar — Graph API Berechtigung prüfen (<code>Organization.Read.All</code>).
+            {% else %}
+              Keine Lizenzen im Mandanten gefunden.
+            {% endif %}
+          </p>
+          {% endif %}
+        </div>
+
+        <!-- Option B: no license -->
+        <label class="lic-option d-block">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <input type="radio" name="license_mode" value="none"
+                   onchange="toggleLicenseList(this.value)">
+            <span class="fw-semibold" style="font-size:13px;">
+              Ohne Produktlizenz erstellen
+              <span class="fw-normal text-muted">(nicht empfohlen)</span>
+            </span>
+          </div>
+          <div class="lic-desc">
+            Dieser Benutzer hat möglicherweise eingeschränkten oder keinen Zugriff auf Microsoft 365,
+            bis eine Lizenz zugewiesen wird.
+          </div>
+        </label>
+
+      </div>
+    </div>
+  </div><!-- /step 2 -->
+
+
+  <!-- ── Navigation ──────────────────────────────────────────────────────── -->
+  <div class="d-flex align-items-center gap-2 mt-1">
+    <button type="button" id="btn-back" class="ms-btn ms-btn-secondary d-none"
+            onclick="wizGo(1)">
+      <i class="bi bi-arrow-left me-1"></i>Zurück
+    </button>
+    <button type="button" id="btn-next" class="ms-btn ms-btn-primary"
+            onclick="wizNext()">
+      Weiter <i class="bi bi-arrow-right ms-1"></i>
+    </button>
+    <button type="submit" id="btn-submit" class="ms-btn ms-btn-primary d-none">
+      <i class="bi bi-person-plus-fill me-1"></i>Benutzer erstellen
+    </button>
+    <span id="wiz-creating" class="text-muted small d-none ms-2">
+      <span class="spinner-border spinner-border-sm me-1"></span>Erstelle Benutzer…
+    </span>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentStep = 1;
+
+/* ── Step navigation ─────────────────────────────────────────────────────── */
+function wizGo(step) {
+  document.getElementById('ws-1').classList.toggle('d-none', step !== 1);
+  document.getElementById('ws-2').classList.toggle('d-none', step !== 2);
+
+  const i1 = document.getElementById('wi-1');
+  const i2 = document.getElementById('wi-2');
+  i1.className = 'wiz-step' + (step === 1 ? ' wiz-active' : ' wiz-done');
+  i2.className = 'wiz-step' + (step === 2 ? ' wiz-active' : '');
+
+  document.getElementById('btn-back').classList.toggle('d-none', step === 1);
+  document.getElementById('btn-next').classList.toggle('d-none', step !== 1);
+  document.getElementById('btn-submit').classList.toggle('d-none', step !== 2);
+
+  currentStep = step;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function wizNext() {
+  /* Validate step 1 inputs before advancing */
+  const step1 = document.getElementById('ws-1');
+  const required = step1.querySelectorAll('[required]');
+  let ok = true;
+  for (const el of required) {
+    if (!el.checkValidity()) { el.reportValidity(); ok = false; break; }
+  }
+  /* Also validate manual password if visible */
+  const pwManual = document.getElementById('pw-manual');
+  if (!pwManual.classList.contains('d-none')) {
+    const pw = document.getElementById('temp_password');
+    if (!pw.value.trim()) {
+      pw.setCustomValidity('Bitte ein Passwort eingeben.');
+      pw.reportValidity();
+      ok = false;
+    } else {
+      pw.setCustomValidity('');
+    }
+  }
+  if (ok) wizGo(2);
+}
+
+/* ── Password toggle ─────────────────────────────────────────────────────── */
+function onAutoPasswordChange(auto) {
+  document.getElementById('pw-manual').classList.toggle('d-none', auto);
+  const pw = document.getElementById('temp_password');
+  if (auto) {
+    pw.removeAttribute('required');
+    pw.setCustomValidity('');
+  } else {
+    pw.setAttribute('required', '');
+  }
+}
+
+/* ── License list toggle ─────────────────────────────────────────────────── */
+function toggleLicenseList(mode) {
+  document.getElementById('sku-list').style.display = (mode === 'assign') ? '' : 'none';
+}
+
+/* ── Auto-fill display name + username ──────────────────────────────────── */
+const elFirst   = document.getElementById('first_name');
+const elLast    = document.getElementById('last_name');
+const elDisplay = document.getElementById('display_name');
+const elNick    = document.getElementById('mail_nickname');
+
+let displayEdited = false;
+let nickEdited    = false;
+
+elDisplay.addEventListener('input', () => { displayEdited = true; });
+elNick.addEventListener('input',    () => { nickEdited = true; });
+
+function onNameInput() {
+  const f = elFirst.value.trim();
+  const l = elLast.value.trim();
+  if (!displayEdited) elDisplay.value = [f, l].filter(Boolean).join(' ');
+  if (!nickEdited) {
+    const fClean = f.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const lClean = l.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (fClean && lClean) elNick.value = fClean + '.' + lClean;
+    else if (fClean || lClean) elNick.value = fClean || lClean;
+  }
+}
+
+elFirst.addEventListener('input', onNameInput);
+elLast.addEventListener('input',  onNameInput);
+
+/* ── Submit spinner ──────────────────────────────────────────────────────── */
+document.getElementById('wiz-form').addEventListener('submit', () => {
+  document.getElementById('btn-submit').disabled = true;
+  document.getElementById('wiz-creating').classList.remove('d-none');
+});
+
+/* ── UPN availability check ─────────────────────────────────────────────── */
+(function () {
+  const nickEl   = document.getElementById('mail_nickname');
+  const domEl    = document.getElementById('domain_select');
+  const checkDiv = document.getElementById('upn-check');
+  const elLoad   = document.getElementById('upn-check-loading');
+  const elFree   = document.getElementById('upn-check-free');
+  const elTaken  = document.getElementById('upn-check-taken');
+  const elErr    = document.getElementById('upn-check-error');
+  let debounceTimer = null;
+  let upnTaken = false;
+
+  function hideAll() {
+    [elLoad, elFree, elTaken, elErr].forEach(el => el.classList.add('d-none'));
+  }
+
+  async function checkUpn() {
+    const nick = (nickEl.value || '').trim();
+    const dom  = domEl ? domEl.value : '';
+    if (!nick || !dom || !dom.includes('.')) {
+      checkDiv.classList.add('d-none');
+      return;
+    }
+    const upn = nick + '@' + dom;
+    checkDiv.classList.remove('d-none');
+    hideAll();
+    elLoad.classList.remove('d-none');
+
+    try {
+      const resp = await fetch(`/admin/m365/users/check-upn?upn=${encodeURIComponent(upn)}`);
+      const data = await resp.json();
+      hideAll();
+      if (data.error) {
+        elErr.classList.remove('d-none');
+        document.getElementById('upn-check-error-text').textContent = 'Prüfung nicht möglich: ' + data.error;
+        upnTaken = false;
+      } else if (data.available) {
+        elFree.classList.remove('d-none');
+        document.getElementById('upn-check-free-text').textContent = upn;
+        upnTaken = false;
+        nickEl.setCustomValidity('');
+      } else {
+        elTaken.classList.remove('d-none');
+        document.getElementById('upn-check-taken-text').textContent = upn;
+        upnTaken = true;
+        nickEl.setCustomValidity('Dieser Benutzername ist bereits vergeben.');
+      }
+    } catch {
+      hideAll();
+      elErr.classList.remove('d-none');
+      document.getElementById('upn-check-error-text').textContent = 'Verbindungsfehler bei der Prüfung.';
+      upnTaken = false;
+    }
+  }
+
+  function triggerCheck() {
+    clearTimeout(debounceTimer);
+    nickEl.setCustomValidity('');
+    debounceTimer = setTimeout(checkUpn, 600);
+  }
+
+  if (nickEl) nickEl.addEventListener('input', triggerCheck);
+  if (domEl)  domEl.addEventListener('change', triggerCheck);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Mitarbeiter registrieren — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title"><i class="bi bi-person-plus-fill me-2 text-primary" style="font-size:18px;"></i>Mitarbeiter vorab registrieren</h1>
+  <a href="/admin/users" class="ms-btn ms-btn-secondary ms-btn-sm"><i class="bi bi-arrow-left"></i> Zurück</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="ms-card">
+      <div class="ms-card-header"><i class="bi bi-person-fill"></i> Mitarbeiter-UPN eingeben</div>
+      <div class="ms-card-body">
+        {% if error %}
+        <div class="ms-alert ms-alert-danger mb-3">
+          <i class="bi bi-exclamation-circle-fill"></i> {{ error }}
+          <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+        </div>
+        {% endif %}
+
+        <form method="post" action="/admin/users/new">
+          <div class="mb-4">
+            <label class="form-label" for="email">User Principal Name (UPN)</label>
+            <input type="email" class="form-control" id="email" name="email"
+                   placeholder="max.mustermann@firma.de" required autofocus>
+            <div class="form-text">
+              Der UPN muss der Microsoft 365-E-Mail-Adresse des Benutzers entsprechen.
+              Der Anzeigename wird automatisch aus dem UPN abgeleitet.
+            </div>
+          </div>
+          <button type="submit" class="ms-btn ms-btn-primary">
+            <i class="bi bi-person-check-fill me-1"></i>Mitarbeiter freigeben
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="ms-card">
+      <div class="ms-card-header"><i class="bi bi-info-circle"></i> Wie funktioniert das?</div>
+      <div class="ms-card-body">
+        <ol class="small text-muted mb-0 ps-3">
+          <li class="mb-2">Du trägst den UPN (M365-E-Mail) des Mitarbeiters ein.</li>
+          <li class="mb-2">Der Benutzer wird in der App-Datenbank vorregistriert.</li>
+          <li class="mb-2">Du kannst ihm sofort App-Rechte zuweisen.</li>
+          <li>Beim ersten Login via Microsoft wird sein Konto automatisch verknüpft.</li>
+        </ol>
+        <hr>
+        <p class="small text-muted mb-0">
+          <i class="bi bi-lightbulb me-1 text-warning"></i>
+          Möchtest du einen neuen M365-Benutzer im Tenant erstellen?
+          Nutze <a href="/admin/m365/users/create">M365-Benutzer erstellen</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

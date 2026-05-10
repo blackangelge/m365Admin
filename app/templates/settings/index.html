@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Einstellungen — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 fw-bold"><i class="bi bi-sliders me-2 text-primary"></i>Einstellungen</h1>
+  <p class="text-muted mb-0">Systemweite Konfiguration der Anwendung.</p>
+</div>
+
+<div class="row g-4">
+
+  <!-- Zeitzone -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent fw-semibold">
+        <i class="bi bi-clock me-2 text-primary"></i>Zeitzone
+      </div>
+      <div class="card-body">
+        <form method="post" action="/settings">
+          <div class="mb-3">
+            <label class="form-label small text-muted" for="timezone">Aktive Zeitzone</label>
+            <select class="form-select" id="timezone" name="timezone">
+              {% for tz in timezones %}
+              <option value="{{ tz }}" {% if tz == settings.timezone %}selected{% endif %}>{{ tz }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">
+              Alle Datum- und Zeitangaben in der Anwendung werden in dieser Zeitzone angezeigt.
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-floppy me-1"></i>Speichern
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weitere Einstellungen — Platzhalter -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm opacity-50">
+      <div class="card-header bg-transparent fw-semibold">
+        <i class="bi bi-envelope me-2 text-secondary"></i>Benachrichtigungen
+      </div>
+      <div class="card-body text-muted small">
+        <i class="bi bi-hourglass-split me-1"></i>Demnächst verfügbar.
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

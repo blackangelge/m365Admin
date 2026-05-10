@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Administration — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 fw-bold"><i class="bi bi-gear-fill me-2 text-primary"></i>Administration</h1>
+  <p class="text-muted mb-0">Übersicht aller Verwaltungsbereiche.</p>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="display-6 fw-bold text-primary">{{ users|length }}</div>
+      <div class="text-muted small">Benutzer gesamt</div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="display-6 fw-bold text-success">{{ users | selectattr('is_active', 'eq', true) | list | length }}</div>
+      <div class="text-muted small">Aktive Benutzer</div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card border-0 shadow-sm text-center py-3">
+      <div class="display-6 fw-bold text-primary">{{ perms|length }}</div>
+      <div class="text-muted small">Zugriffsrechte</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-sm-6 col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body d-flex flex-column">
+        <div class="mb-3">
+          <span class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width:3rem;height:3rem;">
+            <i class="bi bi-people-fill fs-5"></i>
+          </span>
+        </div>
+        <h5 class="fw-semibold">Mitarbeiter</h5>
+        <p class="text-muted small flex-grow-1">Konten verwalten, Rechte vergeben, Logs einsehen.</p>
+        <a href="/admin/users" class="btn btn-primary btn-sm align-self-start">
+          <i class="bi bi-arrow-right me-1"></i>Öffnen
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body d-flex flex-column">
+        <div class="mb-3">
+          <span class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width:3rem;height:3rem;">
+            <i class="bi bi-person-plus-fill fs-5"></i>
+          </span>
+        </div>
+        <h5 class="fw-semibold">Neuer Benutzer</h5>
+        <p class="text-muted small flex-grow-1">Mitarbeiter vorab registrieren und Rechte zuweisen.</p>
+        <a href="/admin/users/new" class="btn btn-primary btn-sm align-self-start">
+          <i class="bi bi-arrow-right me-1"></i>Öffnen
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body d-flex flex-column">
+        <div class="mb-3">
+          <span class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center" style="width:3rem;height:3rem;">
+            <i class="bi bi-key-fill fs-5"></i>
+          </span>
+        </div>
+        <h5 class="fw-semibold">Rechteverwaltung</h5>
+        <p class="text-muted small flex-grow-1">Zugriffsrechte definieren und Mitarbeitern zuweisen.</p>
+        <a href="/admin/permissions" class="btn btn-primary btn-sm align-self-start">
+          <i class="bi bi-arrow-right me-1"></i>Öffnen
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

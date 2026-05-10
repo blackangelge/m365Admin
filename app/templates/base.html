@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}M365 Admin{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/static/css/dataTables.bootstrap5.min.css">
+  <style>
+    /* ── Fluent / M365 Design Tokens ──────────────────────────────────────── */
+    :root {
+      --ms-blue:          #0078d4;
+      --ms-blue-dark:     #106ebe;
+      --ms-blue-light:    #c7e0f4;
+      --ms-sidebar-bg:    #1b1a19;
+      --ms-sidebar-hover: #252423;
+      --ms-sidebar-sec:   #797775;
+      --ms-topbar-bg:     #ffffff;
+      --ms-topbar-border: #edebe9;
+      --ms-content-bg:    #f3f2f1;
+      --ms-card-bg:       #ffffff;
+      --ms-card-border:   #edebe9;
+      --ms-text-primary:  #323130;
+      --ms-text-secondary:#605e5c;
+      --ms-text-disabled: #a19f9d;
+      --ms-danger:        #d13438;
+      --ms-success:       #107c10;
+      --ms-warning:       #797600;
+      --ms-sidebar-width: 220px;
+      --ms-topbar-height: 48px;
+    }
+
+    /* ── Reset / Base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 14px;
+      color: var(--ms-text-primary);
+      background: var(--ms-content-bg);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top Bar ──────────────────────────────────────────────────────────── */
+    .ms-topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--ms-topbar-height);
+      background: var(--ms-topbar-bg);
+      border-bottom: 1px solid var(--ms-topbar-border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      z-index: 1000;
+      gap: 12px;
+    }
+
+    .ms-topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--ms-text-primary);
+      text-decoration: none;
+      white-space: nowrap;
+      min-width: calc(var(--ms-sidebar-width) - 16px);
+    }
+
+    .ms-topbar-brand .brand-icon {
+      width: 28px;
+      height: 28px;
+      background: var(--ms-blue);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .ms-topbar-brand:hover { color: var(--ms-blue); }
+
+    .ms-topbar-divider {
+      width: 1px;
+      height: 24px;
+      background: var(--ms-topbar-border);
+      flex-shrink: 0;
+    }
+
+    .ms-topbar-title {
+      font-size: 14px;
+      color: var(--ms-text-secondary);
+      font-weight: 400;
+    }
+
+    .ms-topbar-spacer { flex: 1; }
+
+    .ms-topbar-user {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ms-topbar-user-name {
+      font-size: 13px;
+      color: var(--ms-text-secondary);
+    }
+
+    .ms-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--ms-blue);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .ms-btn-logout {
+      font-size: 13px;
+      padding: 5px 12px;
+      border: 1px solid var(--ms-card-border);
+      border-radius: 2px;
+      background: #fff;
+      color: var(--ms-text-primary);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.1s, border-color 0.1s;
+    }
+    .ms-btn-logout:hover {
+      background: #f3f2f1;
+      border-color: #c8c6c4;
+      color: var(--ms-text-primary);
+    }
+
+    /* ── App Layout ───────────────────────────────────────────────────────── */
+    .ms-layout {
+      display: flex;
+      margin-top: var(--ms-topbar-height);
+      flex: 1;
+      min-height: calc(100vh - var(--ms-topbar-height));
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────────────────────── */
+    .ms-sidebar {
+      width: var(--ms-sidebar-width);
+      flex-shrink: 0;
+      background: var(--ms-sidebar-bg);
+      min-height: 100%;
+      padding: 8px 0;
+      position: fixed;
+      top: var(--ms-topbar-height);
+      left: 0;
+      bottom: 0;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #484644 transparent;
+    }
+
+    .ms-sidebar::-webkit-scrollbar { width: 4px; }
+    .ms-sidebar::-webkit-scrollbar-thumb { background: #484644; border-radius: 2px; }
+
+    .ms-nav-section {
+      padding: 16px 12px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ms-sidebar-sec);
+    }
+
+    .ms-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      margin: 1px 4px;
+      border-radius: 4px;
+      color: #d2d0ce;
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 400;
+      transition: background 0.1s, color 0.1s;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .ms-nav-link i {
+      font-size: 15px;
+      width: 18px;
+      flex-shrink: 0;
+      opacity: 0.9;
+    }
+
+    .ms-nav-link:hover {
+      background: var(--ms-sidebar-hover);
+      color: #ffffff;
+    }
+
+    .ms-nav-link.active {
+      background: var(--ms-blue);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .ms-nav-link.active i { opacity: 1; }
+
+    /* ── Main Content ─────────────────────────────────────────────────────── */
+    .ms-content {
+      margin-left: var(--ms-sidebar-width);
+      flex: 1;
+      padding: 24px 28px;
+      min-width: 0;
+    }
+
+    .ms-content-no-sidebar {
+      flex: 1;
+      padding: 24px 28px;
+    }
+
+    /* ── Page Header ──────────────────────────────────────────────────────── */
+    .ms-page-header {
+      margin-bottom: 20px;
+    }
+
+    .ms-page-header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--ms-text-primary);
+      margin: 0 0 4px;
+      line-height: 1.3;
+    }
+
+    .ms-page-header .subtitle {
+      font-size: 13px;
+      color: var(--ms-text-secondary);
+      margin: 0;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────────────────── */
+    .ms-card {
+      background: var(--ms-card-bg);
+      border: 1px solid var(--ms-card-border);
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+
+    .ms-card-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--ms-card-border);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ms-text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ms-card-body { padding: 16px; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .ms-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 400;
+      border-radius: 2px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.1s, border-color 0.1s;
+      white-space: nowrap;
+    }
+
+    .ms-btn-primary {
+      background: var(--ms-blue);
+      border-color: var(--ms-blue);
+      color: #fff;
+    }
+    .ms-btn-primary:hover {
+      background: var(--ms-blue-dark);
+      border-color: var(--ms-blue-dark);
+      color: #fff;
+    }
+
+    .ms-btn-secondary {
+      background: #fff;
+      border-color: #8a8886;
+      color: var(--ms-text-primary);
+    }
+    .ms-btn-secondary:hover {
+      background: #f3f2f1;
+      color: var(--ms-text-primary);
+    }
+
+    .ms-btn-danger {
+      background: #fff;
+      border-color: #8a8886;
+      color: var(--ms-danger);
+    }
+    .ms-btn-danger:hover {
+      background: #fde7e9;
+      border-color: var(--ms-danger);
+    }
+
+    .ms-btn-sm {
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+
+    /* ── Alerts / Notifications ───────────────────────────────────────────── */
+    .ms-alert {
+      padding: 10px 14px;
+      border-radius: 2px;
+      border: 1px solid transparent;
+      font-size: 13px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .ms-alert-success {
+      background: #dff6dd;
+      border-color: #107c10;
+      color: #0b5c0b;
+    }
+
+    .ms-alert-danger {
+      background: #fde7e9;
+      border-color: var(--ms-danger);
+      color: #a80000;
+    }
+
+    .ms-alert-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      color: inherit;
+      opacity: 0.6;
+      padding: 0;
+    }
+    .ms-alert-close:hover { opacity: 1; }
+
+    /* ── Tables ───────────────────────────────────────────────────────────── */
+    .ms-table-wrap { overflow-x: auto; }
+
+    table.dataTable.table th {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--ms-text-secondary);
+      background: #faf9f8;
+      border-bottom: 1px solid var(--ms-card-border) !important;
+      padding: 10px 12px;
+    }
+
+    table.dataTable.table td {
+      font-size: 13px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f3f2f1;
+      vertical-align: middle;
+    }
+
+    table.dataTable.table tbody tr:hover td { background: #f3f2f1; }
+    table.dataTable.table tbody tr:last-child td { border-bottom: none; }
+
+    /* DataTables toolbar */
+    .dataTables_wrapper .dataTables_filter input {
+      border: 1px solid #8a8886;
+      border-radius: 2px;
+      padding: 4px 10px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .dataTables_wrapper .dataTables_length select {
+      border: 1px solid #8a8886;
+      border-radius: 2px;
+      padding: 4px 8px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+
+    .dataTables_wrapper .dataTables_info {
+      font-size: 12px;
+      color: var(--ms-text-secondary);
+    }
+
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+      border-radius: 2px !important;
+      font-size: 13px;
+    }
+
+    /* ── Badges ───────────────────────────────────────────────────────────── */
+    .ms-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .ms-badge-blue    { background: #deecf9; color: #004578; }
+    .ms-badge-green   { background: #dff6dd; color: #0b5c0b; }
+    .ms-badge-red     { background: #fde7e9; color: #a80000; }
+    .ms-badge-yellow  { background: #fff4ce; color: #6a4d00; }
+    .ms-badge-gray    { background: #f3f2f1; color: #323130; }
+
+    /* Override Bootstrap badges */
+    .badge.bg-primary   { background: #deecf9 !important; color: #004578 !important; font-weight: 600; border-radius: 2px; }
+    .badge.bg-success   { background: #dff6dd !important; color: #0b5c0b !important; font-weight: 600; border-radius: 2px; }
+    .badge.bg-danger    { background: #fde7e9 !important; color: #a80000 !important; font-weight: 600; border-radius: 2px; }
+    .badge.bg-warning   { background: #fff4ce !important; color: #6a4d00 !important; font-weight: 600; border-radius: 2px; }
+    .badge.bg-secondary { background: #f3f2f1 !important; color: #323130 !important; font-weight: 600; border-radius: 2px; }
+
+    /* ── Form Controls ────────────────────────────────────────────────────── */
+    .form-control, .form-select {
+      border-radius: 2px !important;
+      border: 1px solid #8a8886 !important;
+      font-size: 13px !important;
+      font-family: inherit !important;
+      color: var(--ms-text-primary) !important;
+    }
+
+    .form-control:focus, .form-select:focus {
+      border-color: var(--ms-blue) !important;
+      box-shadow: 0 0 0 1px var(--ms-blue) !important;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ms-text-primary);
+      margin-bottom: 4px;
+    }
+
+    .form-text {
+      font-size: 12px;
+      color: var(--ms-text-secondary);
+    }
+
+    /* Toggle switches — M365 style */
+    .form-check-input[type="checkbox"].form-check-input {
+      border-radius: 12px;
+      width: 36px;
+      height: 20px;
+    }
+
+    .form-check-input:checked {
+      background-color: var(--ms-blue) !important;
+      border-color: var(--ms-blue) !important;
+    }
+
+    /* ── Command Bar (top of content sections) ────────────────────────────── */
+    .ms-command-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      margin-bottom: 16px;
+      border-bottom: 1px solid var(--ms-card-border);
+    }
+
+    .ms-command-bar-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0;
+      flex: 1;
+    }
+
+    /* ── Stat Cards ───────────────────────────────────────────────────────── */
+    .ms-stat-value {
+      font-size: 28px;
+      font-weight: 300;
+      color: var(--ms-blue);
+      line-height: 1;
+    }
+
+    .ms-stat-label {
+      font-size: 12px;
+      color: var(--ms-text-secondary);
+      margin-top: 4px;
+    }
+
+    /* ── Modals ───────────────────────────────────────────────────────────── */
+    .modal-content { border-radius: 4px; border: 1px solid var(--ms-card-border); }
+    .modal-header {
+      border-bottom: 1px solid var(--ms-card-border);
+      padding: 16px;
+    }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-footer { border-top: 1px solid var(--ms-card-border); padding: 12px 16px; }
+
+    /* ── Collapsible Nav Groups ───────────────────────────────────────────── */
+    .ms-nav-toggle {
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      font-family: inherit;
+      justify-content: flex-start;
+    }
+
+    .ms-nav-toggle .ms-chevron {
+      margin-left: auto;
+      font-size: 10px;
+      flex-shrink: 0;
+      transition: transform 0.2s ease;
+      opacity: 0.6;
+    }
+
+    .ms-nav-toggle.open .ms-chevron {
+      transform: rotate(90deg);
+      opacity: 1;
+    }
+
+    .ms-nav-toggle.active-group {
+      color: #ffffff;
+    }
+
+    .ms-nav-sub-group {
+      display: none;
+      overflow: hidden;
+    }
+
+    .ms-nav-sub-group.show {
+      display: block;
+    }
+
+    .ms-nav-sub {
+      padding-left: 34px;
+      font-size: 12.5px;
+    }
+
+    .ms-nav-sub i.bi-dot {
+      font-size: 20px;
+      margin-left: -4px;
+    }
+
+    /* ── Misc ─────────────────────────────────────────────────────────────── */
+    a { color: var(--ms-blue); }
+    a:hover { color: var(--ms-blue-dark); }
+
+    hr { border-color: var(--ms-card-border); }
+
+    .text-muted { color: var(--ms-text-secondary) !important; }
+
+    /* Override Bootstrap card to ms-card style */
+    .card {
+      border-radius: 4px !important;
+      border: 1px solid var(--ms-card-border) !important;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06) !important;
+    }
+
+    .card-header {
+      background: #faf9f8 !important;
+      border-bottom: 1px solid var(--ms-card-border) !important;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 16px !important;
+    }
+
+    /* Override Bootstrap buttons */
+    .btn { border-radius: 2px !important; font-size: 13px !important; }
+    .btn-primary { background: var(--ms-blue) !important; border-color: var(--ms-blue) !important; }
+    .btn-primary:hover { background: var(--ms-blue-dark) !important; border-color: var(--ms-blue-dark) !important; }
+    .btn-outline-primary { color: var(--ms-blue) !important; border-color: var(--ms-blue) !important; }
+    .btn-outline-primary:hover { background: var(--ms-blue) !important; border-color: var(--ms-blue) !important; }
+    .btn-outline-danger { color: var(--ms-danger) !important; border-color: #c8c6c4 !important; }
+    .btn-outline-danger:hover { background: #fde7e9 !important; border-color: var(--ms-danger) !important; }
+    .btn-outline-secondary { color: var(--ms-text-primary) !important; border-color: #8a8886 !important; }
+    .btn-outline-secondary:hover { background: #f3f2f1 !important; }
+    .btn-outline-warning { color: #797600 !important; border-color: #c8c6c4 !important; }
+    .btn-outline-warning:hover { background: #fff4ce !important; border-color: #797600 !important; }
+    .btn-outline-success { color: #107c10 !important; border-color: #c8c6c4 !important; }
+    .btn-outline-success:hover { background: #dff6dd !important; border-color: #107c10 !important; }
+
+    /* Table overrides */
+    .table-light { background: #faf9f8 !important; }
+    .table-hover > tbody > tr:hover > * { background: #f3f2f1; }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Top Bar ──────────────────────────────────────────────────────────── -->
+<header class="ms-topbar">
+  <a class="ms-topbar-brand" href="/">
+    <span class="brand-icon"><i class="bi bi-shield-lock-fill"></i></span>
+    M365 Admin
+  </a>
+
+  {% if user is defined %}
+  <div class="ms-topbar-divider"></div>
+  <span class="ms-topbar-title d-none d-md-block">Admin Center</span>
+  {% endif %}
+
+  <div class="ms-topbar-spacer"></div>
+
+  {% if user is defined %}
+  <div class="ms-topbar-user">
+    <span class="ms-topbar-user-name d-none d-sm-block">{{ user.display_name }}</span>
+    <div class="ms-avatar" title="{{ user.email }}">
+      {{ user.display_name[0].upper() }}
+    </div>
+    <a href="/auth/logout" class="ms-btn-logout">
+      <i class="bi bi-box-arrow-right"></i>
+      <span class="d-none d-md-inline">Abmelden</span>
+    </a>
+  </div>
+  {% endif %}
+</header>
+
+<!-- ── App Layout ───────────────────────────────────────────────────────── -->
+<div class="ms-layout">
+
+  {% if user is defined %}
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <aside class="ms-sidebar">
+
+    <a class="ms-nav-link {% if request.url.path == '/' %}active{% endif %}" href="/">
+      <i class="bi bi-grid-fill"></i> Dashboard
+    </a>
+
+    {% if user.has_permissions %}
+    <div class="ms-nav-section">Mein Bereich</div>
+
+    <a class="ms-nav-link {% if request.url.path in ['/me', '/me/'] %}active{% endif %}" href="/me">
+      <i class="bi bi-person-circle"></i> Mein Konto
+    </a>
+
+    <a class="ms-nav-link {% if request.url.path == '/me/logs' %}active{% endif %}" href="/me/logs">
+      <i class="bi bi-journal-text"></i> Meine Logs
+    </a>
+    {% endif %}
+
+    {% if user.is_admin %}
+    <div class="ms-nav-section">Administration</div>
+
+    <a class="ms-nav-link {% if request.url.path == '/admin/users' or request.url.path.startswith('/admin/users/') and not request.url.path.startswith('/admin/users/new') and not request.url.path.startswith('/admin/m365') %}active{% endif %}" href="/admin/users">
+      <i class="bi bi-people-fill"></i> Mitarbeiter
+    </a>
+
+    <a class="ms-nav-link {% if request.url.path == '/admin/users/new' %}active{% endif %}" href="/admin/users/new">
+      <i class="bi bi-person-badge-fill"></i> Mitarbeiter registrieren
+    </a>
+
+    <a class="ms-nav-link {% if request.url.path == '/admin/permissions' %}active{% endif %}" href="/admin/permissions">
+      <i class="bi bi-key-fill"></i> Rechteverwaltung
+    </a>
+
+    <a class="ms-nav-link {% if request.url.path == '/admin/domains' %}active{% endif %}" href="/admin/domains">
+      <i class="bi bi-globe2"></i> Domains
+    </a>
+
+    <a class="ms-nav-link {% if request.url.path.startswith('/admin/crud') %}active{% endif %}" href="/admin/crud">
+      <i class="bi bi-database-fill"></i> CRUD
+    </a>
+
+    <a class="ms-nav-link {% if request.url.path in ['/settings', '/settings/'] %}active{% endif %}" href="/settings">
+      <i class="bi bi-sliders"></i> App-Einstellungen
+    </a>
+
+    <!-- ── Admin Center ──────────────────────────────────────────────── -->
+    <div class="ms-nav-section">Admin Center</div>
+
+    {# Benutzer toggle #}
+    {% set ac_users_active = request.url.path.startswith('/admin/m365/users') %}
+    <button class="ms-nav-link ms-nav-toggle {% if ac_users_active %}open active-group{% endif %}"
+            id="toggle-ac-users" onclick="msToggleNav('nav-ac-users', this)">
+      <i class="bi bi-people-fill"></i> Benutzer
+      <i class="bi bi-chevron-right ms-chevron"></i>
+    </button>
+    <div id="nav-ac-users" class="ms-nav-sub-group {% if ac_users_active %}show{% endif %}">
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/users' %}active{% endif %}"
+         href="/admin/m365/users">
+        <i class="bi bi-dot"></i> Aktive User
+      </a>
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/users/create' %}active{% endif %}"
+         href="/admin/m365/users/create">
+        <i class="bi bi-dot"></i> Benutzer Erstellen
+      </a>
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/users/offboard' %}active{% endif %}"
+         href="/admin/m365/users/offboard">
+        <i class="bi bi-dot"></i> Benutzer Offboarden
+      </a>
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/users/deleted' %}active{% endif %}"
+         href="/admin/m365/users/deleted">
+        <i class="bi bi-dot"></i> Gelöschte Benutzer
+      </a>
+    </div>
+
+    {# Teams & Gruppen toggle #}
+    {% set ac_groups_active = request.url.path.startswith('/admin/m365/groups') or request.url.path.startswith('/admin/m365/shared') %}
+    <button class="ms-nav-link ms-nav-toggle {% if ac_groups_active %}open active-group{% endif %}"
+            id="toggle-ac-groups" onclick="msToggleNav('nav-ac-groups', this)">
+      <i class="bi bi-diagram-3-fill"></i> Teams & Gruppen
+      <i class="bi bi-chevron-right ms-chevron"></i>
+    </button>
+    <div id="nav-ac-groups" class="ms-nav-sub-group {% if ac_groups_active %}show{% endif %}">
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/groups' %}active{% endif %}"
+         href="/admin/m365/groups">
+        <i class="bi bi-dot"></i> Aktive Teams & Gruppen
+      </a>
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/groups/deleted' %}active{% endif %}"
+         href="/admin/m365/groups/deleted">
+        <i class="bi bi-dot"></i> Gelöschte Gruppen
+      </a>
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/shared-mailboxes' %}active{% endif %}"
+         href="/admin/m365/shared-mailboxes">
+        <i class="bi bi-dot"></i> Freigegebene Postfächer
+      </a>
+    </div>
+
+    {# Einstellungen toggle #}
+    {% set ac_settings_active = request.url.path.startswith('/admin/m365/licenses') %}
+    <button class="ms-nav-link ms-nav-toggle {% if ac_settings_active %}open active-group{% endif %}"
+            id="toggle-ac-settings" onclick="msToggleNav('nav-ac-settings', this)">
+      <i class="bi bi-gear-fill"></i> Einstellungen
+      <i class="bi bi-chevron-right ms-chevron"></i>
+    </button>
+    <div id="nav-ac-settings" class="ms-nav-sub-group {% if ac_settings_active %}show{% endif %}">
+      <a class="ms-nav-link ms-nav-sub {% if request.url.path == '/admin/m365/licenses' %}active{% endif %}"
+         href="/admin/m365/licenses">
+        <i class="bi bi-dot"></i> Lizenzen
+      </a>
+    </div>
+
+    {% endif %}
+
+  </aside>
+  {% endif %}
+
+  <!-- ── Main Content ───────────────────────────────────────────────────── -->
+  <main class="{% if user is defined %}ms-content{% else %}ms-content-no-sidebar{% endif %}">
+
+    {% if error is defined and error %}
+    <div class="ms-alert ms-alert-danger mb-3">
+      <i class="bi bi-exclamation-circle-fill"></i>
+      <span>{{ error }}</span>
+      <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+
+    {% if msg is defined and msg %}
+    <div class="ms-alert ms-alert-success mb-3">
+      <i class="bi bi-check-circle-fill"></i>
+      <span>{{ msg }}</span>
+      <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+  </main>
+
+</div>
+
+<script src="/static/js/jquery.min.js"></script>
+<script src="/static/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/dataTables.min.js"></script>
+<script src="/static/js/dataTables.bootstrap5.min.js"></script>
+<script>
+  /* ── DataTables init ─────────────────────────────────────────────────── */
+  document.querySelectorAll('table.datatable').forEach(function (el) {
+    new DataTable(el, {
+      language: {
+        search:         'Suche:',
+        lengthMenu:     '_MENU_ Einträge anzeigen',
+        info:           '_START_ bis _END_ von _TOTAL_ Einträgen',
+        infoEmpty:      'Keine Einträge vorhanden',
+        infoFiltered:   '(gefiltert von _MAX_ Einträgen)',
+        zeroRecords:    'Keine passenden Einträge gefunden',
+        emptyTable:     'Keine Daten vorhanden',
+        paginate: { first: '«', last: '»', next: '›', previous: '‹' },
+      },
+      pageLength: 25,
+      columnDefs: [{ orderable: false, targets: 'no-sort' }],
+    });
+  });
+
+  /* ── Sidebar nav toggle ──────────────────────────────────────────────── */
+  function msToggleNav(groupId, btn) {
+    const group = document.getElementById(groupId);
+    const isOpen = group.classList.contains('show');
+    group.classList.toggle('show', !isOpen);
+    btn.classList.toggle('open', !isOpen);
+  }
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

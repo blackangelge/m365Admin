@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}{{ target.display_name }} — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 fw-bold">
+      <i class="bi bi-person-circle me-2 text-primary"></i>{{ target.display_name }}
+      {% if target.is_invited %}
+      <span class="badge bg-warning text-dark fs-6 ms-1">Eingeladen</span>
+      {% endif %}
+    </h1>
+    <p class="text-muted mb-0">{{ target.email }}</p>
+  </div>
+  <a href="/admin/users" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left me-1"></i>Zurück
+  </a>
+</div>
+
+<div class="row g-4">
+
+  <!-- Stammdaten + Aktionen -->
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-transparent fw-semibold">
+        <i class="bi bi-person-fill me-2 text-primary"></i>Profil
+      </div>
+      <div class="card-body">
+        <dl class="row small mb-3">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if target.is_active %}
+            <span class="badge bg-success">Aktiv</span>
+            {% else %}
+            <span class="badge bg-warning text-dark">Deaktiviert</span>
+            {% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Rolle</dt>
+          <dd class="col-7">
+            {% if target.is_admin %}
+            <span class="badge bg-danger"><i class="bi bi-shield-fill me-1"></i>Admin</span>
+            {% else %}
+            <span class="badge bg-secondary">Benutzer</span>
+            {% endif %}
+          </dd>
+          <dt class="col-5 text-muted">Registriert</dt>
+          <dd class="col-7 text-muted">{{ target.created_at.strftime('%d.%m.%Y') }}</dd>
+          <dt class="col-5 text-muted">Letzter Login</dt>
+          <dd class="col-7 text-muted">
+            {% if target.last_login_at %}{{ target.last_login_at.strftime('%d.%m.%Y %H:%M') }}{% else %}—{% endif %}
+          </dd>
+        </dl>
+
+        {% if target.id != user.id %}
+        <div class="d-flex flex-column gap-2">
+          <form method="post" action="/admin/users/{{ target.id }}/toggle-active">
+            <button type="submit" class="btn btn-sm w-100 {% if target.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+              {% if target.is_active %}
+              <i class="bi bi-pause-circle me-1"></i>Deaktivieren
+              {% else %}
+              <i class="bi bi-play-circle me-1"></i>Aktivieren
+              {% endif %}
+            </button>
+          </form>
+          <form method="post" action="/admin/users/{{ target.id }}/toggle-admin">
+            <button type="submit" class="btn btn-sm w-100 {% if target.is_admin %}btn-outline-secondary{% else %}btn-outline-danger{% endif %}">
+              {% if target.is_admin %}
+              <i class="bi bi-shield-minus me-1"></i>Admin entziehen
+              {% else %}
+              <i class="bi bi-shield-plus me-1"></i>Zum Admin machen
+              {% endif %}
+            </button>
+          </form>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-0"><i class="bi bi-info-circle me-1"></i>Eigenes Konto — keine Aktionen möglich.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Rechteverwaltung -->
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-transparent fw-semibold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-key-fill me-2 text-primary"></i>Zugriffsrechte</span>
+        <span class="badge bg-primary">{{ target.permissions|length }} zugewiesen</span>
+      </div>
+      <div class="card-body">
+
+        <!-- Zugewiesene Rechte -->
+        {% if target.permissions %}
+        <div class="mb-3">
+          {% for p in target.permissions %}
+          <div class="d-inline-flex align-items-center gap-2 me-2 mb-2 px-3 py-1 rounded bg-primary bg-opacity-10">
+            <span class="fw-semibold text-primary small">{{ p.label }}</span>
+            <form method="post" action="/admin/users/{{ target.id }}/permissions/{{ p.id }}/remove" class="d-inline m-0">
+              <button type="submit" class="btn btn-link btn-sm p-0 text-danger" title="Recht entfernen">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </form>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted small mb-3"><i class="bi bi-lock me-1"></i>Keine Rechte zugewiesen — Benutzer kann sich nicht anmelden.</p>
+        {% endif %}
+
+        <!-- Recht hinzufügen -->
+        {% if available_perms %}
+        <form method="post" action="/admin/users/{{ target.id }}/permissions/add" class="d-flex gap-2">
+          <select name="permission_id" class="form-select form-select-sm">
+            {% for p in available_perms %}
+            <option value="{{ p.id }}">{{ p.label }} ({{ p.code }})</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-primary btn-sm text-nowrap">
+            <i class="bi bi-plus-lg me-1"></i>Hinzufügen
+          </button>
+        </form>
+        {% elif not all_perms %}
+        <p class="text-muted small mb-0">
+          Noch keine Rechte angelegt. <a href="/admin/permissions">Rechte verwalten</a>
+        </p>
+        {% else %}
+        <p class="text-muted small mb-0"><i class="bi bi-check-circle me-1 text-success"></i>Alle verfügbaren Rechte zugewiesen.</p>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- Aktivitäts-Logs -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent fw-semibold">
+        <i class="bi bi-journal-text me-2 text-primary"></i>Aktivitätslogs
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle mb-0 datatable">
+          <thead class="table-light">
+            <tr>
+              <th>Zeitpunkt</th>
+              <th>Aktion</th>
+              <th>Details</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in logs %}
+            <tr>
+              <td class="text-muted small text-nowrap">{{ log.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+              <td>
+                {% if log.action == 'login' %}<span class="badge bg-success">Anmeldung</span>
+                {% elif log.action == 'logout' %}<span class="badge bg-secondary">Abmeldung</span>
+                {% elif log.action == 'permission_assigned' %}<span class="badge bg-primary">Recht erhalten</span>
+                {% elif log.action == 'permission_removed' %}<span class="badge bg-warning text-dark">Recht entzogen</span>
+                {% elif log.action == 'user_activated' %}<span class="badge bg-success">Aktiviert</span>
+                {% elif log.action == 'user_deactivated' %}<span class="badge bg-danger">Deaktiviert</span>
+                {% else %}<span class="badge bg-secondary">{{ log.action }}</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">{{ log.details or '—' }}</td>
+              <td class="small text-muted font-monospace">{{ log.ip_address or '—' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="4" class="text-center text-muted py-3 small">
+                <i class="bi bi-inbox me-1"></i>Noch keine Aktivitäten aufgezeichnet.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

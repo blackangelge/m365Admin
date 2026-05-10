@@ -1,0 +1,15 @@
+.env
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.db
+*.db-wal
+*.db-shm
+*.egg-info/
+.venv/
+venv/
+nginx/certs/
+SETUP.md

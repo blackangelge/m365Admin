@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}Rechteverwaltung — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title">
+    <i class="bi bi-key-fill me-2 text-primary" style="font-size:18px;"></i>Rechteverwaltung
+  </h1>
+  <button class="ms-btn ms-btn-primary ms-btn-sm" data-bs-toggle="modal" data-bs-target="#newPermModal">
+    <i class="bi bi-plus-lg"></i> Neues Recht
+  </button>
+</div>
+
+{% if msg %}
+<div class="ms-alert ms-alert-success mb-4">
+  <i class="bi bi-check-circle-fill"></i> {{ msg }}
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+{% if error %}
+<div class="ms-alert ms-alert-danger mb-4">
+  <i class="bi bi-exclamation-triangle-fill"></i> {{ error }}
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+{% if not perms %}
+<div class="ms-card">
+  <div class="ms-card-body text-center text-muted py-5">
+    <i class="bi bi-key fs-2 d-block mb-2 text-primary" style="opacity:.4;"></i>
+    <div class="fw-semibold">Noch keine Rechte angelegt</div>
+    <div class="small mt-1">Klicke auf „Neues Recht" um ein Zugriffsrecht zu erstellen.</div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  {% for p in perms %}
+  <div class="col-12">
+    <div class="ms-card">
+      {# Card header #}
+      <div class="ms-card-header d-flex justify-content-between align-items-center" style="cursor:pointer;"
+           onclick="togglePermCard({{ p.id }})">
+        <div class="d-flex align-items-center gap-3">
+          <span class="fw-semibold" style="font-size:15px;">{{ p.name }}</span>
+          <span class="ms-badge ms-badge-blue">{{ p.users|length }} Mitarbeiter</span>
+          {% if p.domains %}
+          <span class="ms-badge ms-badge-gray">
+            <i class="bi bi-globe2 me-1"></i>{{ p.domains|length }} Domain(s)
+          </span>
+          {% endif %}
+          {% if p.comment %}
+          <span class="small text-muted">— {{ p.comment }}</span>
+          {% endif %}
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <form method="post" action="/admin/permissions/{{ p.id }}/delete"
+                onsubmit="return confirm('Recht \'{{ p.name }}\' wirklich löschen?')"
+                onclick="event.stopPropagation()">
+            <button type="submit" class="ms-btn ms-btn-secondary ms-btn-sm" style="color:#a80000;border-color:#a80000;">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          <i class="bi bi-chevron-down perm-chevron" id="chevron-{{ p.id }}" style="transition:transform .2s;"></i>
+        </div>
+      </div>
+
+      {# Collapsible body #}
+      <div id="perm-body-{{ p.id }}" style="display:none;">
+        <form method="post" action="/admin/permissions/{{ p.id }}/update">
+          <input type="hidden" name="name"    value="{{ p.name }}">
+          <input type="hidden" name="comment" value="{{ p.comment }}">
+
+          <div class="row g-0">
+            {# Left: Features #}
+            <div class="col-lg-7" style="padding:20px 24px;border-right:1px solid #f3f2f1;">
+              {% for section_name, feats in feature_sections.items() %}
+              <div class="perm-section-title">{{ section_name }}</div>
+              {% for feat in feats %}
+              <div class="perm-feat-row">
+                <div>
+                  <div class="fw-semibold small">{{ feat.label }}</div>
+                  <div class="text-muted" style="font-size:.75rem;">{{ feat.description }}</div>
+                </div>
+                <div class="form-check form-switch mb-0 ms-3">
+                  <input class="form-check-input" type="checkbox" role="switch"
+                         name="feat_{{ feat.key }}" value="1"
+                         {% if p.has_feature(feat.key) %}checked{% endif %}
+                         style="cursor:pointer;">
+                </div>
+              </div>
+              {% endfor %}
+              {% endfor %}
+            </div>
+
+            {# Right: Domains #}
+            <div class="col-lg-5" style="padding:20px 24px;">
+              <div class="perm-section-title">Domains</div>
+              <p class="text-muted small mb-3">
+                Mitarbeiter mit diesem Recht sehen nur Benutzer, Postfächer und Gruppen der gewählten Domains.
+                Kein Haken = alle Domains sichtbar.
+              </p>
+              {% if all_domains %}
+              <div class="d-flex flex-column gap-2">
+                {% for domain in all_domains %}
+                <label class="domain-check-label">
+                  <input type="checkbox" name="domain_ids" value="{{ domain.id }}"
+                         {% if domain in p.domains %}checked{% endif %}>
+                  <span class="domain-check-text">
+                    <i class="bi bi-globe2 me-1 text-primary" style="font-size:12px;"></i>
+                    {{ domain.name }}
+                    {% if domain.is_default %}
+                    <span class="ms-badge ms-badge-blue ms-1" style="font-size:10px;">Standard</span>
+                    {% endif %}
+                  </span>
+                </label>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div class="text-muted small">
+                <i class="bi bi-info-circle me-1"></i>
+                Keine Domains vorhanden —
+                <a href="/admin/domains">Domains synchronisieren</a>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="d-flex gap-2 px-4 py-3 border-top" style="background:#fafafa;">
+            <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm">
+              <i class="bi bi-save me-1"></i>Änderungen speichern
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+
+{# ── Modal: Neues Recht ───────────────────────────────────────────────────── #}
+<div class="modal fade" id="newPermModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" action="/admin/permissions">
+        <div class="modal-header">
+          <h5 class="modal-title fw-semibold">
+            <i class="bi bi-plus-circle me-2 text-primary"></i>Neues Recht erstellen
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3 mb-4">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="new-name">Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="new-name" name="name"
+                     placeholder="z.B. IT-Helpdesk" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold" for="new-comment">Kommentar</label>
+              <input type="text" class="form-control" id="new-comment" name="comment"
+                     placeholder="Wofür wird dieses Recht verwendet?">
+            </div>
+          </div>
+
+          <div class="row g-3">
+            {# Features #}
+            <div class="col-lg-7">
+              <div class="fw-semibold mb-2" style="font-size:13px;">Funktionen</div>
+              {% for section_name, feats in feature_sections.items() %}
+              <div class="perm-section-title">{{ section_name }}</div>
+              {% for feat in feats %}
+              <div class="perm-feat-row">
+                <div>
+                  <div class="fw-semibold small">{{ feat.label }}</div>
+                  <div class="text-muted" style="font-size:.75rem;">{{ feat.description }}</div>
+                </div>
+                <div class="form-check form-switch mb-0 ms-3">
+                  <input class="form-check-input" type="checkbox" role="switch"
+                         name="feat_{{ feat.key }}" value="1" style="cursor:pointer;">
+                </div>
+              </div>
+              {% endfor %}
+              {% endfor %}
+            </div>
+
+            {# Domains #}
+            <div class="col-lg-5 border-start">
+              <div class="fw-semibold mb-2 ps-3" style="font-size:13px;">Domains</div>
+              {% if all_domains %}
+              <div class="d-flex flex-column gap-2 ps-3">
+                {% for domain in all_domains %}
+                <label class="domain-check-label">
+                  <input type="checkbox" name="domain_ids" value="{{ domain.id }}">
+                  <span class="domain-check-text">
+                    <i class="bi bi-globe2 me-1 text-primary" style="font-size:12px;"></i>
+                    {{ domain.name }}
+                    {% if domain.is_default %}
+                    <span class="ms-badge ms-badge-blue ms-1" style="font-size:10px;">Standard</span>
+                    {% endif %}
+                  </span>
+                </label>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="text-muted small ps-3">Keine Domains synchronisiert.</p>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="ms-btn ms-btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+          <button type="submit" class="ms-btn ms-btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Erstellen
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+.perm-section-title {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: #0078d4; margin: 14px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #e5f2ff;
+}
+.perm-feat-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 0; border-bottom: 1px solid #f8f8f8;
+}
+.perm-feat-row:last-child { border-bottom: none; }
+.domain-check-label {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 4px;
+  border: 1px solid #edebe9; cursor: pointer; transition: background .1s;
+  font-size: 13px;
+}
+.domain-check-label:hover { background: #f3f2f1; }
+.domain-check-label input[type=checkbox] { cursor: pointer; }
+.domain-check-text { flex: 1; }
+</style>
+
+<script>
+function togglePermCard(id) {
+  const body    = document.getElementById('perm-body-' + id);
+  const chevron = document.getElementById('chevron-' + id);
+  const open    = body.style.display !== 'none';
+  body.style.display   = open ? 'none' : '';
+  chevron.style.transform = open ? '' : 'rotate(180deg)';
+}
+</script>
+{% endblock %}

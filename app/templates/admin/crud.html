@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}CRUD — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title"><i class="bi bi-database-fill me-2 text-primary" style="font-size:18px;"></i>Datenbank-Browser</h1>
+</div>
+
+<div class="row g-3">
+  {% for t in tables %}
+  <div class="col-sm-6 col-md-4 col-lg-3">
+    <a href="/admin/crud/{{ t.name }}" class="text-decoration-none">
+      <div class="ms-card p-3 d-flex align-items-center gap-3" style="transition:box-shadow .15s;cursor:pointer;"
+           onmouseover="this.style.boxShadow='0 2px 8px rgba(0,120,212,.18)'"
+           onmouseout="this.style.boxShadow=''">
+        <div style="width:40px;height:40px;background:#deecf9;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i class="bi bi-table" style="font-size:18px;color:#004578;"></i>
+        </div>
+        <div class="min-width-0">
+          <div class="fw-semibold text-truncate" style="font-size:13px;">{{ t.name }}</div>
+          <div class="text-muted" style="font-size:12px;">{{ t.count }} Zeilen</div>
+        </div>
+      </div>
+    </a>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="ms-card p-4 text-center text-muted">
+      <i class="bi bi-database-slash fs-3 d-block mb-2"></i>
+      Keine Tabellen gefunden.
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

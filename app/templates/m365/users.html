@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Aktive User — M365 Admin{% endblock %}
+
+{% block content %}
+<div class="ms-command-bar">
+  <h1 class="ms-command-bar-title">
+    <i class="bi bi-people-fill me-2 text-primary" style="font-size:18px;"></i>Aktive User
+  </h1>
+  <a href="/admin/m365/users" class="ms-btn ms-btn-secondary ms-btn-sm">
+    <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+  </a>
+  <a href="/admin/m365/users/create" class="ms-btn ms-btn-primary ms-btn-sm">
+    <i class="bi bi-person-plus-fill"></i> Neuer Benutzer
+  </a>
+</div>
+
+{% if msg %}
+<div class="ms-alert ms-alert-success mb-3">
+  <i class="bi bi-check-circle-fill"></i> {{ msg }}
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+{% if graph_error %}
+<div class="ms-alert ms-alert-danger mb-4">
+  <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;margin-top:1px;"></i>
+  <div>
+    <strong>Graph API Fehler</strong><br>{{ graph_error }}<br><br>
+    <strong>Benötigte Berechtigung:</strong> <code>User.Read.All</code> (Application)
+  </div>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+
+{# ── Filter chips ─────────────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+  <span class="text-muted small me-1">Filter:</span>
+  <button class="ms-filter-chip active" data-filter="all">
+    Alle <span class="ms-filter-chip-count" id="cnt-all">{{ users|length }}</span>
+  </button>
+  <button class="ms-filter-chip" data-filter="enabled">
+    Aktiv <span class="ms-filter-chip-count" id="cnt-enabled"></span>
+  </button>
+  <button class="ms-filter-chip" data-filter="disabled">
+    Deaktiviert <span class="ms-filter-chip-count" id="cnt-disabled"></span>
+  </button>
+  <button class="ms-filter-chip" data-filter="licensed">
+    Mit Lizenz <span class="ms-filter-chip-count" id="cnt-licensed"></span>
+  </button>
+  <button class="ms-filter-chip" data-filter="unlicensed">
+    Ohne Lizenz <span class="ms-filter-chip-count" id="cnt-unlicensed"></span>
+  </button>
+</div>
+
+<div class="ms-card">
+  <div class="ms-card-header">
+    <i class="bi bi-people-fill"></i> M365-Benutzer
+    {% if users %}
+    <span class="ms-badge ms-badge-blue ms-2" id="table-count">{{ users|length }}</span>
+    {% endif %}
+    <span class="small text-muted ms-2" style="font-size:12px;">Zeile anklicken zum Bearbeiten</span>
+  </div>
+  <div class="ms-table-wrap">
+    <table class="table datatable mb-0" id="users-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>UPN</th>
+          <th>Lizenzen</th>
+          <th>Status</th>
+          <th>Erstellt</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr
+          data-user-id="{{ u.id }}"
+          data-enabled="{{ 'true' if u.accountEnabled else 'false' }}"
+          data-licensed="{{ 'true' if u.assignedLicenses else 'false' }}"
+          onclick="window.location='/admin/m365/users/{{ u.id }}'"
+          style="cursor:pointer;"
+        >
+          <td class="fw-semibold">
+            <div class="d-flex align-items-center gap-2">
+              <span class="user-avatar-sm">{{ (u.displayName or u.userPrincipalName or '?')[0].upper() }}</span>
+              {{ u.displayName or '—' }}
+            </div>
+          </td>
+          <td class="small text-muted font-monospace">{{ u.userPrincipalName }}</td>
+          <td class="small">
+            {% if u.licenseNames %}
+              {% for lic in u.licenseNames[:2] %}
+              <span class="ms-badge ms-badge-blue">{{ lic }}</span>
+              {% endfor %}
+              {% if u.licenseNames|length > 2 %}
+              <span class="ms-badge ms-badge-gray">+{{ u.licenseNames|length - 2 }}</span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted small">Keine</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.accountEnabled %}
+            <span class="ms-badge ms-badge-green">
+              <i class="bi bi-circle-fill" style="font-size:7px;"></i> Aktiv
+            </span>
+            {% else %}
+            <span class="ms-badge ms-badge-red">
+              <i class="bi bi-circle-fill" style="font-size:7px;"></i> Deaktiviert
+            </span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ (u.createdDateTime or '')[:10] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.ms-filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 16px; border: 1px solid #c8c6c4;
+  background: #fff; color: #323130; font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.ms-filter-chip:hover { border-color: #0078d4; color: #0078d4; }
+.ms-filter-chip.active { background: #0078d4; border-color: #0078d4; color: #fff; }
+.ms-filter-chip-count { font-size: 11px; opacity: .8; }
+.user-avatar-sm {
+  width: 28px; height: 28px; border-radius: 50%; background: #0078d4;
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; flex-shrink: 0;
+}
+#users-table tbody tr:hover { background: #f3f2f1; }
+</style>
+
+<script>
+(function () {
+  // Pre-count for filter chips
+  let cntEnabled = 0, cntDisabled = 0, cntLicensed = 0, cntUnlicensed = 0;
+  document.querySelectorAll('#users-table tbody tr').forEach(tr => {
+    if (tr.dataset.enabled === 'true') cntEnabled++; else cntDisabled++;
+    if (tr.dataset.licensed === 'true') cntLicensed++; else cntUnlicensed++;
+  });
+  document.getElementById('cnt-enabled').textContent    = cntEnabled;
+  document.getElementById('cnt-disabled').textContent   = cntDisabled;
+  document.getElementById('cnt-licensed').textContent   = cntLicensed;
+  document.getElementById('cnt-unlicensed').textContent = cntUnlicensed;
+
+  document.querySelectorAll('.ms-filter-chip').forEach(btn => {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      document.querySelectorAll('.ms-filter-chip').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      const f = this.dataset.filter;
+      let visible = 0;
+      document.querySelectorAll('#users-table tbody tr').forEach(tr => {
+        let show = true;
+        if (f === 'enabled')    show = tr.dataset.enabled   === 'true';
+        if (f === 'disabled')   show = tr.dataset.enabled   === 'false';
+        if (f === 'licensed')   show = tr.dataset.licensed  === 'true';
+        if (f === 'unlicensed') show = tr.dataset.licensed  === 'false';
+        tr.style.display = show ? '' : 'none';
+        if (show) visible++;
+      });
+      const badge = document.getElementById('table-count');
+      if (badge) badge.textContent = visible;
+    });
+  });
+})();
+</script>
+{% endblock %}
