@@ -258,7 +258,7 @@
     }
 
     .ms-card-header {
-      padding: 12px 16px;
+      padding: 13px 16px;
       border-bottom: 1px solid var(--ms-card-border);
       font-size: 13px;
       font-weight: 600;
@@ -266,6 +266,14 @@
       display: flex;
       align-items: center;
       gap: 8px;
+      background: #fff;
+      border-radius: 4px 4px 0 0;
+    }
+
+    /* Tabellen-Karten: kein extra Padding — DataTables bringt sein eigenes */
+    .ms-card:has(> .ms-table-wrap) .ms-card-header,
+    .ms-card:has(> div > .dataTables_wrapper) .ms-card-header {
+      border-bottom: none;
     }
 
     .ms-card-body { padding: 16px; }
@@ -360,55 +368,219 @@
     }
     .ms-alert-close:hover { opacity: 1; }
 
-    /* ── Tables ───────────────────────────────────────────────────────────── */
+    /* ══════════════════════════════════════════════════════════════════════
+       Tables & DataTables — M365 Fluent Style
+       ══════════════════════════════════════════════════════════════════════ */
+
     .ms-table-wrap { overflow-x: auto; }
 
+    /* ── Table base ─────────────────────────────────────────────────────── */
+    table.dataTable.table {
+      border-collapse: collapse;
+      width: 100% !important;
+      margin: 0 !important;
+    }
+
+    table.dataTable.table thead tr {
+      border-bottom: 2px solid var(--ms-card-border);
+    }
+
     table.dataTable.table th {
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.06em;
       color: var(--ms-text-secondary);
       background: #faf9f8;
-      border-bottom: 1px solid var(--ms-card-border) !important;
-      padding: 10px 12px;
+      border-bottom: 2px solid var(--ms-card-border) !important;
+      border-top: none !important;
+      padding: 11px 14px;
+      white-space: nowrap;
+      user-select: none;
     }
+
+    /* sort icons — cleaner arrows */
+    table.dataTable thead .sorting,
+    table.dataTable thead .sorting_asc,
+    table.dataTable thead .sorting_desc {
+      background-image: none !important;
+      padding-right: 26px !important;
+      position: relative;
+    }
+    table.dataTable thead .sorting::after,
+    table.dataTable thead .sorting_asc::after,
+    table.dataTable thead .sorting_desc::after {
+      font-family: 'bootstrap-icons';
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      opacity: 0.45;
+    }
+    table.dataTable thead .sorting::after       { content: '\f282'; } /* bi-chevron-expand */
+    table.dataTable thead .sorting_asc::after   { content: '\f235'; opacity: 0.8; color: var(--ms-blue); } /* bi-sort-up */
+    table.dataTable thead .sorting_desc::after  { content: '\f236'; opacity: 0.8; color: var(--ms-blue); } /* bi-sort-down */
 
     table.dataTable.table td {
-      font-size: 13px;
-      padding: 10px 12px;
+      font-size: 13.5px;
+      padding: 11px 14px;
       border-bottom: 1px solid #f3f2f1;
+      border-top: none !important;
       vertical-align: middle;
+      color: var(--ms-text-primary);
     }
 
-    table.dataTable.table tbody tr:hover td { background: #f3f2f1; }
+    table.dataTable.table tbody tr { transition: background .1s; }
+    table.dataTable.table tbody tr:hover td { background: #f3f2f1 !important; }
     table.dataTable.table tbody tr:last-child td { border-bottom: none; }
 
-    /* DataTables toolbar */
-    .dataTables_wrapper .dataTables_filter input {
-      border: 1px solid #8a8886;
-      border-radius: 2px;
-      padding: 4px 10px;
+    /* ── DataTables wrapper layout ──────────────────────────────────────── */
+    .dataTables_wrapper {
+      padding: 0;
+    }
+
+    /* Toolbar rows — flex containers, padding handled here */
+    .dt-top-row,
+    .dt-bot-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+    }
+
+    /* Length control (Einträge anzeigen) — left-aligned, left padding */
+    .dataTables_wrapper .dataTables_length {
+      float: none;
+      display: flex;
+      align-items: center;
+      padding: 10px 8px 10px 16px;
+    }
+
+    .dataTables_wrapper .dataTables_length label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
       font-size: 13px;
-      font-family: inherit;
+      color: var(--ms-text-secondary);
+      font-weight: 400;
     }
 
     .dataTables_wrapper .dataTables_length select {
-      border: 1px solid #8a8886;
+      border: 1px solid #c8c6c4;
       border-radius: 2px;
-      padding: 4px 8px;
+      padding: 5px 28px 5px 10px;
       font-size: 13px;
       font-family: inherit;
+      color: var(--ms-text-primary);
+      background: #fff;
+      cursor: pointer;
+      appearance: auto;
+      height: 32px;
+    }
+    .dataTables_wrapper .dataTables_length select:focus {
+      outline: none;
+      border-color: var(--ms-blue);
+      box-shadow: 0 0 0 1px var(--ms-blue);
     }
 
-    .dataTables_wrapper .dataTables_info {
-      font-size: 12px;
+    /* Search field — right-aligned, right padding */
+    .dataTables_wrapper .dataTables_filter {
+      float: none;
+      display: flex;
+      align-items: center;
+      padding: 10px 16px 10px 8px;
+    }
+
+    .dataTables_wrapper .dataTables_filter label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 13px;
       color: var(--ms-text-secondary);
+      font-weight: 400;
+    }
+
+    .dataTables_wrapper .dataTables_filter input[type="search"] {
+      border: 1px solid #c8c6c4;
+      border-radius: 2px;
+      padding: 5px 10px 5px 32px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--ms-text-primary);
+      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%23605e5c' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/%3E%3C/svg%3E") no-repeat 10px center;
+      height: 32px;
+      width: 220px;
+      transition: border-color .15s, box-shadow .15s, width .2s;
+    }
+    .dataTables_wrapper .dataTables_filter input[type="search"]:focus {
+      outline: none;
+      border-color: var(--ms-blue);
+      box-shadow: 0 0 0 1px var(--ms-blue);
+      width: 280px;
+    }
+
+    /* divider between toolbar and table */
+    .dataTables_wrapper .dataTables_scroll,
+    .dataTables_wrapper > table {
+      border-top: 1px solid var(--ms-card-border);
+    }
+
+    /* ── Bottom bar: info + pagination ──────────────────────────────────── */
+    /* Info text — left-aligned, left padding + bottom breathing room */
+    .dataTables_wrapper .dataTables_info {
+      float: none;
+      padding: 8px 8px 12px 16px;
+      font-size: 12.5px;
+      color: var(--ms-text-secondary);
+      line-height: 32px;
+    }
+
+    /* Pagination — right-aligned, right padding + bottom breathing room */
+    .dataTables_wrapper .dataTables_paginate {
+      float: none;
+      padding: 6px 16px 12px 8px;
     }
 
     .dataTables_wrapper .dataTables_paginate .paginate_button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      height: 32px;
+      padding: 0 8px;
+      margin: 0 1px;
+      border: 1px solid transparent !important;
       border-radius: 2px !important;
       font-size: 13px;
+      color: var(--ms-text-primary) !important;
+      background: transparent !important;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background .1s, border-color .1s;
+      line-height: 1;
+    }
+
+    .dataTables_wrapper .dataTables_paginate .paginate_button:hover:not(.disabled) {
+      background: #f3f2f1 !important;
+      border-color: #c8c6c4 !important;
+      color: var(--ms-text-primary) !important;
+    }
+
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
+      background: var(--ms-blue) !important;
+      border-color: var(--ms-blue) !important;
+      color: #fff !important;
+      font-weight: 600;
+    }
+
+    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled,
+    .dataTables_wrapper .dataTables_paginate .paginate_button.disabled:hover {
+      color: var(--ms-text-disabled) !important;
+      cursor: default;
     }
 
     /* ── Badges ───────────────────────────────────────────────────────────── */
@@ -758,6 +930,7 @@
   <!-- ── Main Content ───────────────────────────────────────────────────── -->
   <main class="{% if user is defined %}ms-content{% else %}ms-content-no-sidebar{% endif %}">
 
+    {% block page_alerts %}
     {% if error is defined and error %}
     <div class="ms-alert ms-alert-danger mb-3">
       <i class="bi bi-exclamation-circle-fill"></i>
@@ -773,6 +946,7 @@
       <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
     </div>
     {% endif %}
+    {% endblock %}
 
     {% block content %}{% endblock %}
 
@@ -790,16 +964,24 @@
     new DataTable(el, {
       language: {
         search:         'Suche:',
+        searchPlaceholder: 'Suchen…',
         lengthMenu:     '_MENU_ Einträge anzeigen',
         info:           '_START_ bis _END_ von _TOTAL_ Einträgen',
         infoEmpty:      'Keine Einträge vorhanden',
         infoFiltered:   '(gefiltert von _MAX_ Einträgen)',
         zeroRecords:    'Keine passenden Einträge gefunden',
         emptyTable:     'Keine Daten vorhanden',
-        paginate: { first: '«', last: '»', next: '›', previous: '‹' },
+        paginate: {
+          first:    '«',
+          last:     '»',
+          next:     '›',
+          previous: '‹',
+        },
       },
-      pageLength: 25,
-      columnDefs: [{ orderable: false, targets: 'no-sort' }],
+      pageLength:   25,
+      lengthMenu:   [10, 25, 50, 100],
+      columnDefs:   [{ orderable: false, targets: 'no-sort' }],
+      dom: '<"dt-top-row"lf>t<"dt-bot-row"ip>',
     });
   });
 

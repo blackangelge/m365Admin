@@ -1,5 +1,7 @@
 """Microsoft Graph API client (app-only / client-credentials flow)."""
+import asyncio
 import logging
+import secrets
 
 import httpx
 import msal
@@ -200,12 +202,19 @@ def _acquire_app_token() -> str:
 
 # ── Low-level HTTP helpers ─────────────────────────────────────────────────────
 
-async def _graph_get(path: str, params: dict | None = None) -> dict:
+async def _graph_get(
+    path: str,
+    params: dict | None = None,
+    extra_headers: dict | None = None,
+) -> dict:
     token = _acquire_app_token()
+    headers: dict = {"Authorization": f"Bearer {token}"}
+    if extra_headers:
+        headers.update(extra_headers)
     async with httpx.AsyncClient(timeout=20.0) as client:
         resp = await client.get(
             f"{GRAPH_BASE}{path}",
-            headers={"Authorization": f"Bearer {token}"},
+            headers=headers,
             params=params or {},
         )
         if resp.status_code == 401:
@@ -341,14 +350,38 @@ async def _build_sku_map() -> dict[str, str]:
 
 async def get_users() -> list[dict]:
     """
-    List all users with enriched license names.
+    List ALL users with enriched license names — follows @odata.nextLink for pagination.
     Requires User.Read.All + Organization.Read.All (for SKU mapping).
+    Graph API returns max 999 per page; this function collects all pages.
     """
     sku_map = await _build_sku_map()
-    data = await _graph_get("/users", params={
-        "$select": _USER_LIST_SELECT, "$top": "999",
-    })
-    users = data.get("value", [])
+    token = _acquire_app_token()
+    users: list[dict] = []
+    next_url: str | None = f"{GRAPH_BASE}/users"
+    params: dict | None = {"$select": _USER_LIST_SELECT, "$top": "999"}
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        while next_url:
+            resp = await client.get(
+                next_url,
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+            )
+            if resp.status_code == 401:
+                raise GraphError("Authentifizierung fehlgeschlagen – prüfe Client-ID und Secret in .env.")
+            if resp.status_code == 403:
+                raise GraphError(
+                    "Keine Berechtigung (User.Read.All erforderlich)."
+                )
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise GraphError(f"Graph API Fehler {resp.status_code}: {resp.text[:200]}") from exc
+            data = resp.json()
+            users.extend(data.get("value", []))
+            next_url = data.get("@odata.nextLink")
+            params = None  # nextLink already contains all query params
+
     for u in users:
         lics = u.get("assignedLicenses") or []
         u["licenseNames"] = [sku_map.get(l["skuId"], l["skuId"]) for l in lics]
@@ -434,16 +467,42 @@ async def get_shared_mailboxes() -> list[dict]:
     Return only actual Exchange Online shared mailboxes by checking
     mailboxSettings.userPurpose via $batch.
 
+    Performance optimisation: tries to pre-filter to accountEnabled=false
+    (shared mailboxes are always disabled). If the tenant requires
+    ConsistencyLevel headers for this filter, falls back to fetching all
+    users and filtering by mail presence.
+
     Required permissions (Application):
       • User.Read.All          — list all users
       • MailboxSettings.Read   — read mailboxSettings per user
     """
-    # 1. Get all users
-    users_data = await _graph_get("/users", params={
-        "$select": "id,displayName,userPrincipalName,mail",
-        "$top": "999",
-    })
-    all_users = users_data.get("value", [])
+    _consistency_headers = {
+        "ConsistencyLevel": "eventual",
+    }
+
+    # 1. Try filtered fetch first (fast path).
+    try:
+        users_data = await _graph_get("/users", params={
+            "$select": "id,displayName,userPrincipalName,mail",
+            "$filter": "accountEnabled eq false",
+            "$count":  "true",
+            "$top":    "999",
+        }, extra_headers=_consistency_headers)
+        all_users = [u for u in users_data.get("value", []) if u.get("mail")]
+        logger.debug("get_shared_mailboxes: filtered fetch returned %d users", len(all_users))
+    except Exception as exc:
+        # Fallback: fetch all users, filter in Python (slower but always works).
+        logger.warning("get_shared_mailboxes: filter failed (%s), falling back to full fetch", exc)
+        users_data = await _graph_get("/users", params={
+            "$select": "id,displayName,userPrincipalName,mail,accountEnabled",
+            "$top":    "999",
+        })
+        all_users = [
+            u for u in users_data.get("value", [])
+            if not u.get("accountEnabled") and u.get("mail")
+        ]
+        logger.debug("get_shared_mailboxes: fallback fetch returned %d candidates", len(all_users))
+
     if not all_users:
         return []
 
@@ -457,17 +516,123 @@ async def get_shared_mailboxes() -> list[dict]:
     # 3. Execute batch (auto-chunked to 20)
     responses = await _graph_batch(batch_reqs)
 
-    # 4. Collect shared mailboxes
+    # 4. Collect entries whose mailboxSettings.userPurpose == "shared"
     shared: list[dict] = []
     for resp in responses:
         if resp.get("status") == 200:
             body = resp.get("body", {})
             if body.get("userPurpose") == "shared":
-                user = idx_map.get(resp["id"], {}).copy()
-                user["mailboxPurpose"] = "shared"
-                shared.append(user)
+                user = idx_map.get(resp.get("id", ""), {}).copy()
+                if user:
+                    user["mailboxPurpose"] = "shared"
+                    shared.append(user)
 
     return sorted(shared, key=lambda u: (u.get("displayName") or "").lower())
+
+
+async def create_shared_mailbox(display_name: str, mail_nickname: str, domain: str) -> dict:
+    """
+    Create a shared mailbox as a disabled user account.
+    Exchange Online will auto-convert it to a shared mailbox.
+    Requires User.ReadWrite.All.
+    """
+    upn = f"{mail_nickname}@{domain}"
+    payload = {
+        "accountEnabled": False,
+        "displayName": display_name,
+        "mailNickname": mail_nickname,
+        "userPrincipalName": upn,
+        "passwordProfile": {
+            "forceChangePasswordNextSignIn": False,
+            "password": secrets.token_urlsafe(24) + "Aa1!",
+        },
+    }
+    return await _graph_post("/users", payload)
+
+
+_SM_SELECT = (
+    "id,displayName,userPrincipalName,mail,mailNickname,"
+    "proxyAddresses,showInAddressList,accountEnabled,createdDateTime,otherMails"
+)
+
+
+async def get_shared_mailbox_full(mailbox_id: str) -> dict:
+    """
+    Get full details of a shared mailbox including mailboxSettings.
+    mailboxSettings is fetched independently so a permission error there
+    does not suppress the whole flyout — it just returns an empty dict.
+    Requires User.Read.All (+ MailboxSettings.Read for the settings tab).
+    """
+    user_data = await _graph_get(f"/users/{mailbox_id}", params={"$select": _SM_SELECT})
+    try:
+        ms_data = await _graph_get(f"/users/{mailbox_id}/mailboxSettings")
+    except Exception as exc:
+        logger.warning("mailboxSettings fetch failed for %s: %s", mailbox_id, exc)
+        ms_data = {}
+    user_data["mailboxSettings"] = ms_data
+    return user_data
+
+
+async def update_shared_mailbox(mailbox_id: str, fields: dict) -> None:
+    """PATCH shared mailbox user properties. Requires User.ReadWrite.All."""
+    await _graph_patch(f"/users/{mailbox_id}", fields)
+
+
+async def delete_shared_mailbox(mailbox_id: str) -> None:
+    """Delete (soft-delete) a shared mailbox user. Requires User.ReadWrite.All."""
+    await _graph_delete(f"/users/{mailbox_id}")
+
+
+async def add_shared_mailbox_alias(mailbox_id: str, alias_address: str) -> None:
+    """
+    Add a secondary SMTP alias to a shared mailbox.
+    Requires User.ReadWrite.All.
+    """
+    user = await _graph_get(f"/users/{mailbox_id}", params={"$select": "id,proxyAddresses"})
+    proxy_addresses: list[str] = list(user.get("proxyAddresses", []))
+    new_alias = f"smtp:{alias_address}"
+    if new_alias.lower() not in [p.lower() for p in proxy_addresses]:
+        proxy_addresses.append(new_alias)
+        await _graph_patch(f"/users/{mailbox_id}", {"proxyAddresses": proxy_addresses})
+
+
+async def remove_shared_mailbox_alias(mailbox_id: str, alias_address: str) -> None:
+    """
+    Remove a secondary SMTP alias from a shared mailbox.
+    Primary SMTP (uppercase SMTP:) is preserved.
+    Requires User.ReadWrite.All.
+    """
+    user = await _graph_get(f"/users/{mailbox_id}", params={"$select": "id,proxyAddresses"})
+    proxy_addresses: list[str] = list(user.get("proxyAddresses", []))
+    updated = [
+        p for p in proxy_addresses
+        if p.lower() != f"smtp:{alias_address}".lower()
+    ]
+    await _graph_patch(f"/users/{mailbox_id}", {"proxyAddresses": updated})
+
+
+async def update_shared_mailbox_settings(mailbox_id: str, ms_settings: dict) -> None:
+    """
+    Patch mailboxSettings (OOO, timezone, language).
+    Requires MailboxSettings.ReadWrite.
+    """
+    token = _acquire_app_token()
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.patch(
+            f"{GRAPH_BASE}/users/{mailbox_id}/mailboxSettings",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=ms_settings,
+        )
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            body = ""
+            try:
+                err_data = resp.json()
+                body = err_data.get("error", {}).get("message") or resp.text[:300]
+            except Exception:
+                body = resp.text[:300]
+            raise GraphError(f"Graph API Fehler {resp.status_code}: {body}") from exc
 
 
 # ── Groups / Teams ────────────────────────────────────────────────────────────

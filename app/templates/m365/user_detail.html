@@ -4,18 +4,34 @@
 {% block head %}
 <style>
   /* ── Page-level command bar ─────────────────────────────────────────────── */
+  /*
+   * ms-content hat padding: 24px 28px.
+   * ud-command-bar bricht mit negativen Margins heraus → volle Breite.
+   * Interne Elemente bekommen dann padding-left/right: 28px zurück.
+   */
   .ud-command-bar {
     background: #fff;
     border-bottom: 1px solid #edebe9;
-    padding: 16px 0 0;
-    margin-bottom: 0;
+    margin: -24px -28px 0;   /* aus ms-content-Padding herausbrechen */
+    padding: 0;
   }
+
+  .ud-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: #605e5c;
+    text-decoration: none;
+    padding: 14px 28px 8px;  /* Links: 28px = ms-content-Padding */
+  }
+  .ud-back:hover { color: #0078d4; }
 
   .ud-header-row {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 0 0 16px;
+    padding: 4px 28px 18px;  /* Links/Rechts: 28px */
     flex-wrap: wrap;
   }
 
@@ -67,19 +83,37 @@
   }
 
   /* ── Tab bar ────────────────────────────────────────────────────────────── */
+
+  /* Wrapper: Tab-Buttons links + Edit-Aktionen rechts */
+  .ud-tab-row {
+    display: flex;
+    align-items: stretch;
+    background: #fff;
+  }
+
   .ms-tab-bar {
     background: #fff;
-    border-bottom: 1px solid #edebe9;
     display: flex;
-    padding: 0 0;
+    flex: 1;           /* nimmt restliche Breite */
+    padding: 0 20px;
     gap: 0;
     overflow-x: auto;
     scrollbar-width: none;
   }
   .ms-tab-bar::-webkit-scrollbar { display: none; }
 
+  /* Edit-Aktionen rechts der Tabs */
+  .ud-tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 20px 2px 12px;
+    flex-shrink: 0;
+    border-left: 1px solid #edebe9;
+  }
+
   .ms-tab {
-    padding: 12px 18px;
+    padding: 12px 16px;
     border: none;
     background: transparent;
     color: #323130;
@@ -96,7 +130,7 @@
   .ms-tab.tab-active { color: #0078d4; border-bottom-color: #0078d4; font-weight: 600; }
 
   /* ── Tab panes ──────────────────────────────────────────────────────────── */
-  .tab-pane { display: none; padding-top: 24px; }
+  .tab-pane { display: none; padding-top: 28px; }  /* Abstand nach dem Header */
   .tab-pane.active { display: block; }
 
   /* ── Section titles inside cards ───────────────────────────────────────── */
@@ -240,18 +274,6 @@
   /* ── Spacer between cards ───────────────────────────────────────────────── */
   .ud-card-gap { margin-bottom: 16px; }
 
-  /* ── Back link ──────────────────────────────────────────────────────────── */
-  .ud-back {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 13px;
-    color: #605e5c;
-    text-decoration: none;
-    margin-bottom: 10px;
-  }
-  .ud-back:hover { color: #0078d4; }
-
   /* ── Textarea ───────────────────────────────────────────────────────────── */
   textarea.form-control { resize: vertical; }
 
@@ -300,6 +322,9 @@
 </style>
 {% endblock %}
 
+{# Alert-Block unterdrücken — wird weiter unten (nach dem Command Bar) gerendert #}
+{% block page_alerts %}{% endblock %}
+
 {% block content %}
 
 {# ── Command bar ──────────────────────────────────────────────────────────── #}
@@ -340,43 +365,63 @@
     </div>
   </div>
 
-  {# ── Tab bar ── #}
-  <div class="ms-tab-bar" id="ud-tab-bar">
-    <button class="ms-tab" data-tab="konto">
-      <i class="bi bi-person-fill me-1"></i>Konto
-    </button>
-    <button class="ms-tab" data-tab="postfach">
-      <i class="bi bi-envelope-fill me-1"></i>E-Mail &amp; Postfach
-    </button>
-    <button class="ms-tab" data-tab="lizenzen">
-      <i class="bi bi-key-fill me-1"></i>Lizenzen
-    </button>
-    <button class="ms-tab" data-tab="gruppen">
-      <i class="bi bi-people-fill me-1"></i>Gruppen
-    </button>
-    <button class="ms-tab" data-tab="freigabe">
-      <i class="bi bi-shield-lock-fill me-1"></i>Postfach-Freigabe
-    </button>
+  {# ── Tab bar + globale Edit-Aktionen ── #}
+  <div class="ud-tab-row">
+    <div class="ms-tab-bar" id="ud-tab-bar">
+      <button class="ms-tab" data-tab="konto">
+        <i class="bi bi-person-fill me-1"></i>Konto
+      </button>
+      <button class="ms-tab" data-tab="postfach">
+        <i class="bi bi-envelope-fill me-1"></i>E-Mail &amp; Postfach
+      </button>
+      <button class="ms-tab" data-tab="lizenzen">
+        <i class="bi bi-key-fill me-1"></i>Lizenzen
+      </button>
+      <button class="ms-tab" data-tab="gruppen">
+        <i class="bi bi-people-fill me-1"></i>Gruppen
+      </button>
+      <button class="ms-tab" data-tab="freigabe">
+        <i class="bi bi-shield-lock-fill me-1"></i>Postfach-Freigabe
+      </button>
+    </div>
+    <div class="ud-tab-actions">
+      <button id="hdr-edit-btn" type="button"
+              class="ms-btn ms-btn-secondary ms-btn-sm"
+              onclick="hdrEdit()">
+        <i class="bi bi-pencil"></i> Bearbeiten
+      </button>
+      <button id="hdr-cancel-btn" type="button"
+              class="ms-btn ms-btn-secondary ms-btn-sm d-none"
+              onclick="hdrCancel()">
+        <i class="bi bi-x-lg"></i> Abbrechen
+      </button>
+    </div>
   </div>
 </div>
+
+{# ── Alerts: nach Command Bar, mit top-Abstand ────────────────────────────── #}
+{% if error is defined and error %}
+<div class="ms-alert ms-alert-danger mt-4 mb-0">
+  <i class="bi bi-exclamation-circle-fill"></i>
+  <span>{{ error }}</span>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+{% if msg is defined and msg %}
+<div class="ms-alert ms-alert-success mt-4 mb-0">
+  <i class="bi bi-check-circle-fill"></i>
+  <span>{{ msg }}</span>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
 
 {# ═══════════════════════════════════════════════════════════════════════════ #}
 {# TAB 1 — KONTO                                                              #}
 {# ═══════════════════════════════════════════════════════════════════════════ #}
 <div class="tab-pane" id="tab-pane-konto">
   <div class="ms-card" id="sec-konto">
-    <div class="ms-card-header d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-person-vcard-fill"></i> Kontaktinformationen</span>
-      <div class="d-flex gap-2">
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-                onclick="secEdit('konto')">
-          <i class="bi bi-pencil"></i> Bearbeiten
-        </button>
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-                onclick="secCancel('konto')">
-          <i class="bi bi-x-lg"></i> Abbrechen
-        </button>
-      </div>
+    <div class="ms-card-header">
+      <i class="bi bi-person-vcard-fill"></i> Kontaktinformationen
     </div>
     <div class="ms-card-body sec-readonly">
       <form method="post" action="/admin/m365/users/{{ profile.id }}/contact">
@@ -480,18 +525,8 @@
 
   {# ── Card 1: Abwesenheitsnotiz ────────────────────────────────────────── #}
   <div class="ms-card ud-card-gap" id="sec-ooo">
-    <div class="ms-card-header d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-calendar-x-fill"></i> Abwesenheitsnotiz</span>
-      <div class="d-flex gap-2">
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-                onclick="secEdit('ooo')">
-          <i class="bi bi-pencil"></i> Bearbeiten
-        </button>
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-                onclick="secCancel('ooo')">
-          <i class="bi bi-x-lg"></i> Abbrechen
-        </button>
-      </div>
+    <div class="ms-card-header">
+      <i class="bi bi-calendar-x-fill"></i> Abwesenheitsnotiz
     </div>
     <div class="ms-card-body sec-readonly">
       {% set ars = mailbox_settings.get('automaticRepliesSetting', {}) if mailbox_settings else {} %}
@@ -577,18 +612,8 @@
 
   {# ── Card 2: Weiterleitung ────────────────────────────────────────────── #}
   <div class="ms-card ud-card-gap" id="sec-fwd">
-    <div class="ms-card-header d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-forward-fill"></i> E-Mail-Weiterleitung</span>
-      <div class="d-flex gap-2">
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-                onclick="secEdit('fwd')">
-          <i class="bi bi-pencil"></i> Bearbeiten
-        </button>
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-                onclick="secCancel('fwd')">
-          <i class="bi bi-x-lg"></i> Abbrechen
-        </button>
-      </div>
+    <div class="ms-card-header">
+      <i class="bi bi-forward-fill"></i> E-Mail-Weiterleitung
     </div>
     <div class="ms-card-body sec-readonly">
       {% set fwd_raw = (forwarding.forwardingSmtpAddress or '') if forwarding else '' %}
@@ -643,18 +668,8 @@
 
   {# ── Card 3: Aliase (Proxy-Adressen) ─────────────────────────────────── #}
   <div class="ms-card ud-card-gap" id="sec-alias">
-    <div class="ms-card-header d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-at"></i> Aliase (Proxy-Adressen)</span>
-      <div class="d-flex gap-2">
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-                onclick="secEdit('alias')">
-          <i class="bi bi-pencil"></i> Bearbeiten
-        </button>
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-                onclick="secCancel('alias')">
-          <i class="bi bi-x-lg"></i> Abbrechen
-        </button>
-      </div>
+    <div class="ms-card-header">
+      <i class="bi bi-at"></i> Aliase (Proxy-Adressen)
     </div>
     <div class="ms-card-body">
 
@@ -747,18 +762,8 @@
 
   {# ── Card 4: Sprache & Zeitzone ───────────────────────────────────────── #}
   <div class="ms-card ud-card-gap" id="sec-langtz">
-    <div class="ms-card-header d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-translate"></i> Sprache &amp; Zeitzone</span>
-      <div class="d-flex gap-2">
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-                onclick="secEdit('langtz')">
-          <i class="bi bi-pencil"></i> Bearbeiten
-        </button>
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-                onclick="secCancel('langtz')">
-          <i class="bi bi-x-lg"></i> Abbrechen
-        </button>
-      </div>
+    <div class="ms-card-header">
+      <i class="bi bi-translate"></i> Sprache &amp; Zeitzone
     </div>
     <div class="ms-card-body sec-readonly">
       {% set mb_lang = mailbox_settings.get('language', {}) if mailbox_settings else {} %}
@@ -930,18 +935,7 @@
 {# ═══════════════════════════════════════════════════════════════════════════ #}
 <div class="tab-pane" id="tab-pane-lizenzen">
 
-{# Read-only edit bar for entire licenses tab #}
 <div id="sec-lizenzen" style="display:contents;">
-  <div class="d-flex justify-content-end mb-3 gap-2">
-    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-            onclick="secEdit('lizenzen')">
-      <i class="bi bi-pencil"></i> Bearbeiten
-    </button>
-    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-            onclick="secCancel('lizenzen')">
-      <i class="bi bi-x-lg"></i> Abbrechen
-    </button>
-  </div>
 
   {# ── Current licenses ─────────────────────────────────────────────────── #}
   <div class="ms-card ud-card-gap">
@@ -981,8 +975,8 @@
   </div>
 
   {# ── Add license ──────────────────────────────────────────────────────── #}
-  {% set assigned_sku_ids = licenses | map(attribute='skuId') | list %}
-  {% set available = all_licenses | selectattr('skuId', 'not in', assigned_sku_ids) | list %}
+  {# all_licenses ist bereits in der Route gefiltert (nicht-zugewiesene SKUs) #}
+  {% set available = all_licenses %}
 
   <div class="ms-card ud-card-gap">
     <div class="ms-card-header">
@@ -1036,16 +1030,6 @@
 <div class="tab-pane" id="tab-pane-gruppen">
 
 <div id="sec-gruppen" style="display:contents;">
-  <div class="d-flex justify-content-end mb-3 gap-2">
-    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-            onclick="secEdit('gruppen')">
-      <i class="bi bi-pencil"></i> Bearbeiten
-    </button>
-    <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-            onclick="secCancel('gruppen')">
-      <i class="bi bi-x-lg"></i> Abbrechen
-    </button>
-  </div>
 
   {# ── Current memberships ──────────────────────────────────────────────── #}
   <div class="ms-card ud-card-gap">
@@ -1154,23 +1138,11 @@
 
   {# ── Card 1: Delegierte (EWS via exchangelib) ─────────────────────────── #}
   <div class="ms-card ud-card-gap" id="sec-freigabe">
-    <div class="ms-card-header d-flex justify-content-between align-items-center">
-      <span>
-        <i class="bi bi-shield-lock-fill"></i> Postfach-Delegierte (EWS)
-        {% if delegates %}
-        <span class="ms-badge ms-badge-blue ms-2">{{ delegates | length }}</span>
-        {% endif %}
-      </span>
-      <div class="d-flex gap-2">
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-                onclick="secEdit('freigabe')">
-          <i class="bi bi-pencil"></i> Bearbeiten
-        </button>
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-                onclick="secCancel('freigabe')">
-          <i class="bi bi-x-lg"></i> Abbrechen
-        </button>
-      </div>
+    <div class="ms-card-header">
+      <i class="bi bi-shield-lock-fill"></i> Postfach-Delegierte (EWS)
+      {% if delegates %}
+      <span class="ms-badge ms-badge-blue ms-2">{{ delegates | length }}</span>
+      {% endif %}
     </div>
     <div class="ms-card-body p-0">
 
@@ -1233,18 +1205,8 @@
 
   {# ── Card 2: Delegierten hinzufügen ──────────────────────────────────── #}
   <div class="ms-card ud-card-gap" id="sec-freigabe-add">
-    <div class="ms-card-header d-flex justify-content-between align-items-center">
-      <span><i class="bi bi-person-plus-fill"></i> Delegierten hinzufügen / bearbeiten</span>
-      <div class="d-flex gap-2">
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-edit"
-                onclick="secEdit('freigabe-add')">
-          <i class="bi bi-pencil"></i> Bearbeiten
-        </button>
-        <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm sec-btn-cancel d-none"
-                onclick="secCancel('freigabe-add')">
-          <i class="bi bi-x-lg"></i> Abbrechen
-        </button>
-      </div>
+    <div class="ms-card-header">
+      <i class="bi bi-person-plus-fill"></i> Delegierten hinzufügen / bearbeiten
     </div>
     <div class="ms-card-body">
       <form method="post" action="/admin/m365/users/{{ profile.id }}/delegate/add">
@@ -1336,12 +1298,139 @@
 {% block scripts %}
 <script>
 /* ══════════════════════════════════════════════════════════════════════════ */
+/* Globales Edit-State-Management                                             */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+/* Welche Sections gehören zu welchem Tab */
+var TAB_SECTIONS = {
+  konto:    ['konto'],
+  postfach: ['ooo', 'fwd', 'alias', 'langtz'],
+  lizenzen: ['lizenzen'],
+  gruppen:  ['gruppen'],
+  freigabe: ['freigabe', 'freigabe-add']
+};
+
+var _savedState       = null;  /* gespeicherter Zustand vor dem Bearbeiten */
+var _activeSections   = [];    /* aktuell im Edit-Mode befindliche Sections */
+
+/* Zustand aller Felder + Chips + Dynamic-Blocks einer Section speichern */
+function _captureState(secIds) {
+  var state = { inputs: [], chips: [], displays: [] };
+
+  secIds.forEach(function (id) {
+    var sec = document.getElementById('sec-' + id);
+    if (!sec) return;
+
+    /* alle Formularfelder */
+    sec.querySelectorAll('input, select, textarea').forEach(function (el) {
+      state.inputs.push({
+        el:            el,
+        value:         el.value,
+        checked:       el.checked,
+        selectedIndex: el.tagName === 'SELECT' ? el.selectedIndex : -1
+      });
+    });
+
+    /* OOO / Extern-Chips */
+    sec.querySelectorAll('.ooo-chip').forEach(function (el) {
+      state.chips.push({ el: el, selected: el.classList.contains('selected') });
+    });
+
+    /* Dynamische Blöcke (Geplant-Zeitraum, Weiterleitungs-Detail) */
+    ['ooo-scheduled-block', 'fwd-detail-block'].forEach(function (blockId) {
+      var block = document.getElementById(blockId);
+      if (block) state.displays.push({ el: block, display: block.style.display });
+    });
+  });
+
+  return state;
+}
+
+/* Gespeicherten Zustand wiederherstellen */
+function _restoreState(state) {
+  state.inputs.forEach(function (s) {
+    s.el.value   = s.value;
+    s.el.checked = s.checked;
+    if (s.selectedIndex >= 0) s.el.selectedIndex = s.selectedIndex;
+  });
+  state.chips.forEach(function (s) {
+    s.el.classList.toggle('selected', s.selected);
+  });
+  state.displays.forEach(function (s) {
+    s.el.style.display = s.display;
+  });
+}
+
+/* Section in Edit-Mode versetzen (Inputs aktivieren, Buttons zeigen) */
+function secEdit(id) {
+  var sec = document.getElementById('sec-' + id);
+  if (!sec) return;
+
+  sec.querySelectorAll('.sec-input').forEach(function (el) { el.disabled = false; });
+  sec.querySelectorAll('.ooo-chip').forEach(function (el) { el.style.pointerEvents = ''; });
+  sec.querySelectorAll('.sec-readonly').forEach(function (el) {
+    el.classList.remove('sec-readonly');
+    el.dataset.wasReadonly = '1';
+  });
+  sec.querySelectorAll('.sec-action-btn').forEach(function (el) { el.classList.remove('d-none'); });
+  sec.querySelectorAll('.sec-submit').forEach(function (el) { el.classList.remove('d-none'); });
+}
+
+/* Section aus Edit-Mode zurück in Read-Only */
+function secExitEdit(id) {
+  var sec = document.getElementById('sec-' + id);
+  if (!sec) return;
+
+  sec.querySelectorAll('.sec-input').forEach(function (el) { el.disabled = true; });
+  sec.querySelectorAll('.ooo-chip').forEach(function (el) { el.style.pointerEvents = ''; });
+  sec.querySelectorAll('[data-was-readonly]').forEach(function (el) {
+    el.classList.add('sec-readonly');
+    delete el.dataset.wasReadonly;
+  });
+  sec.querySelectorAll('.sec-action-btn').forEach(function (el) { el.classList.add('d-none'); });
+  sec.querySelectorAll('.sec-submit').forEach(function (el) { el.classList.add('d-none'); });
+}
+
+/* ── Globale Header-Buttons ─────────────────────────────────────────────── */
+function hdrEdit() {
+  var tab = (document.querySelector('#ud-tab-bar .ms-tab.tab-active') || {}).dataset || {};
+  var sections = TAB_SECTIONS[tab.tab] || [];
+
+  _savedState     = _captureState(sections);
+  _activeSections = sections;
+
+  sections.forEach(function (id) { secEdit(id); });
+
+  document.getElementById('hdr-edit-btn').classList.add('d-none');
+  document.getElementById('hdr-cancel-btn').classList.remove('d-none');
+}
+
+function hdrCancel() {
+  /* Werte zurücksetzen — kein Seiten-Reload nötig */
+  if (_savedState) {
+    _restoreState(_savedState);
+    _savedState = null;
+  }
+  _activeSections.forEach(function (id) { secExitEdit(id); });
+  _activeSections = [];
+
+  document.getElementById('hdr-edit-btn').classList.remove('d-none');
+  document.getElementById('hdr-cancel-btn').classList.add('d-none');
+}
+
+/* Rückwärtskompatibilität: alte secCancel-Aufrufe landen jetzt hier */
+function secCancel() { hdrCancel(); }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
 /* Tab switching                                                              */
 /* ══════════════════════════════════════════════════════════════════════════ */
 (function () {
   var TAB_KEY = 'ud_active_tab_{{ profile.id }}';
 
   function activateTab(tabId) {
+    /* Edit-Mode beim Tab-Wechsel beenden */
+    if (_activeSections.length > 0) { hdrCancel(); }
+
     document.querySelectorAll('#ud-tab-bar .ms-tab').forEach(function (btn) {
       btn.classList.toggle('tab-active', btn.dataset.tab === tabId);
     });
@@ -1362,43 +1451,6 @@
   } catch (e) {}
   activateTab(initialTab);
 })();
-
-/* ══════════════════════════════════════════════════════════════════════════ */
-/* Section read-only / edit mode                                              */
-/* ══════════════════════════════════════════════════════════════════════════ */
-function secEdit(id) {
-  var sec = document.getElementById('sec-' + id);
-  if (!sec) return;
-  // Enable all form inputs
-  sec.querySelectorAll('.sec-input').forEach(function (el) {
-    el.disabled = false;
-  });
-  // Allow OOO chips to be clicked
-  sec.querySelectorAll('.ooo-chip').forEach(function (el) {
-    el.style.pointerEvents = '';
-  });
-  // Remove sec-readonly styling
-  sec.querySelectorAll('.sec-readonly').forEach(function (el) {
-    el.classList.remove('sec-readonly');
-    el.dataset.wasReadonly = '1';
-  });
-  // Show action buttons (remove / add per row)
-  sec.querySelectorAll('.sec-action-btn').forEach(function (el) {
-    el.classList.remove('d-none');
-  });
-  // Show submit buttons
-  sec.querySelectorAll('.sec-submit').forEach(function (el) {
-    el.classList.remove('d-none');
-  });
-  // Toggle edit/cancel buttons
-  sec.querySelectorAll('.sec-btn-edit').forEach(function (el) { el.classList.add('d-none'); });
-  sec.querySelectorAll('.sec-btn-cancel').forEach(function (el) { el.classList.remove('d-none'); });
-}
-
-function secCancel(id) {
-  // Simplest reliable cancel: reload the page
-  location.reload();
-}
 
 /* ══════════════════════════════════════════════════════════════════════════ */
 /* OOO chip selection                                                         */

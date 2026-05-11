@@ -31,7 +31,7 @@
 </div>
 {% endif %}
 
-{# ── Filter chips ─────────────────────────────────────────────────────────── #}
+{# ── Filter-Leiste ────────────────────────────────────────────────────────── #}
 <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
   <span class="text-muted small me-1">Filter:</span>
   <button class="ms-filter-chip active" data-filter="all">
@@ -49,6 +49,19 @@
   <button class="ms-filter-chip" data-filter="unlicensed">
     Ohne Lizenz <span class="ms-filter-chip-count" id="cnt-unlicensed"></span>
   </button>
+
+  {# Domain-Filter — nur anzeigen wenn Domains vorhanden #}
+  {% if filter_domains %}
+  <div class="ms-domain-filter">
+    <i class="bi bi-globe2 text-muted" style="font-size:13px;"></i>
+    <select id="domain-filter" class="ms-domain-select" title="Domain filtern">
+      <option value="">Alle Domains</option>
+      {% for d in filter_domains %}
+      <option value="{{ d }}">{{ d }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
 </div>
 
 <div class="ms-card">
@@ -76,7 +89,8 @@
           data-user-id="{{ u.id }}"
           data-enabled="{{ 'true' if u.accountEnabled else 'false' }}"
           data-licensed="{{ 'true' if u.assignedLicenses else 'false' }}"
-          onclick="window.location='/admin/m365/users/{{ u.id }}'"
+          data-domain="{{ (u.userPrincipalName or '').split('@')[-1].lower() }}"
+          onclick="showUserLoading('/admin/m365/users/{{ u.id }}')"
           style="cursor:pointer;"
         >
           <td class="fw-semibold">
@@ -132,40 +146,120 @@
   font-size: 12px; font-weight: 600; flex-shrink: 0;
 }
 #users-table tbody tr:hover { background: #f3f2f1; }
+.ms-domain-filter {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 16px; border: 1px solid #c8c6c4;
+  background: #fff; font-size: 13px;
+}
+.ms-domain-select {
+  border: none; outline: none; background: transparent;
+  font-size: 13px; color: #323130; cursor: pointer; max-width: 220px;
+}
+.ms-domain-select:focus { outline: none; }
 </style>
 
+{# ── Lade-Overlay beim Navigieren zu einem User ── #}
+<div id="nav-loading-overlay"
+     style="display:none;position:fixed;inset:0;background:rgba(255,255,255,.65);
+            z-index:9999;align-items:center;justify-content:center;
+            flex-direction:column;gap:12px;">
+  <div style="width:40px;height:40px;border-radius:50%;
+              border:3px solid #edebe9;border-top-color:#0078d4;
+              animation:ud-spin .65s linear infinite;"></div>
+  <span style="font-size:13px;color:#323130;font-weight:500;">
+    Benutzerdaten werden geladen…
+  </span>
+</div>
+<style>
+@keyframes ud-spin { to { transform: rotate(360deg); } }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
 <script>
 (function () {
-  // Pre-count for filter chips
-  let cntEnabled = 0, cntDisabled = 0, cntLicensed = 0, cntUnlicensed = 0;
-  document.querySelectorAll('#users-table tbody tr').forEach(tr => {
-    if (tr.dataset.enabled === 'true') cntEnabled++; else cntDisabled++;
+  // ── Active filter state (module-level) ────────────────────────────────
+  var activeChip   = 'all';
+  var activeDomain = '';
+
+  // ── Lade-Overlay ──────────────────────────────────────────────────────
+  window.showUserLoading = function (url) {
+    var ov = document.getElementById('nav-loading-overlay');
+    if (ov) ov.style.display = 'flex';
+    window.location = url;
+  };
+
+  // ── Pre-count chip badges (static totals, run immediately on DOM) ─────
+  var allRows = document.querySelectorAll('#users-table tbody tr');
+  var cntEnabled = 0, cntDisabled = 0, cntLicensed = 0, cntUnlicensed = 0;
+  allRows.forEach(function (tr) {
+    if (tr.dataset.enabled  === 'true') cntEnabled++;  else cntDisabled++;
     if (tr.dataset.licensed === 'true') cntLicensed++; else cntUnlicensed++;
   });
+  document.getElementById('cnt-all').textContent        = allRows.length;
   document.getElementById('cnt-enabled').textContent    = cntEnabled;
   document.getElementById('cnt-disabled').textContent   = cntDisabled;
   document.getElementById('cnt-licensed').textContent   = cntLicensed;
   document.getElementById('cnt-unlicensed').textContent = cntUnlicensed;
 
-  document.querySelectorAll('.ms-filter-chip').forEach(btn => {
-    btn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      document.querySelectorAll('.ms-filter-chip').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      const f = this.dataset.filter;
-      let visible = 0;
-      document.querySelectorAll('#users-table tbody tr').forEach(tr => {
-        let show = true;
-        if (f === 'enabled')    show = tr.dataset.enabled   === 'true';
-        if (f === 'disabled')   show = tr.dataset.enabled   === 'false';
-        if (f === 'licensed')   show = tr.dataset.licensed  === 'true';
-        if (f === 'unlicensed') show = tr.dataset.licensed  === 'false';
-        tr.style.display = show ? '' : 'none';
-        if (show) visible++;
-      });
-      const badge = document.getElementById('table-count');
-      if (badge) badge.textContent = visible;
+  // ── Register DataTables custom search (runs on every dt.draw()) ───────
+  // base.html initialises the DataTable in its own inline <script> that runs
+  // before this scripts-block, so the table already exists here.
+  // ext.search functions are checked on every draw(), so registering after
+  // init is fine — the initial draw shows all rows (no active filter).
+  $.fn.dataTable.ext.search.push(function (settings, _data, dataIndex) {
+    // Only apply to the users table
+    if (settings.nTable.id !== 'users-table') return true;
+
+    var row = settings.aoData[dataIndex].nTr;
+    if (!row) return true;
+
+    // Chip filter
+    if (activeChip !== 'all') {
+      if (activeChip === 'enabled'    && row.dataset.enabled  !== 'true')  return false;
+      if (activeChip === 'disabled'   && row.dataset.enabled  !== 'false') return false;
+      if (activeChip === 'licensed'   && row.dataset.licensed !== 'true')  return false;
+      if (activeChip === 'unlicensed' && row.dataset.licensed !== 'false') return false;
+    }
+
+    // Domain filter
+    if (activeDomain && row.dataset.domain !== activeDomain) return false;
+
+    return true;
+  });
+
+  // ── Wire up controls after DataTable is ready ─────────────────────────
+  $(document).ready(function () {
+    var dt    = $('#users-table').DataTable();
+    var badge = document.getElementById('table-count');
+
+    // Update badge count on every redraw (reflects applied filters)
+    $('#users-table').on('draw.dt', function () {
+      if (badge) badge.textContent = dt.rows({ filter: 'applied' }).count();
     });
+
+    // Chip filter buttons
+    document.querySelectorAll('.ms-filter-chip').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        document.querySelectorAll('.ms-filter-chip').forEach(function (b) {
+          b.classList.remove('active');
+        });
+        this.classList.add('active');
+        activeChip = this.dataset.filter;
+        dt.draw();
+      });
+    });
+
+    // Domain dropdown
+    var domainSel = document.getElementById('domain-filter');
+    if (domainSel) {
+      domainSel.addEventListener('change', function () {
+        activeDomain = this.value.toLowerCase();
+        dt.draw();
+      });
+    }
   });
 })();
 </script>

@@ -30,6 +30,10 @@ services:
     volumes:
       # Bind-Mount: Datenbankdatei ist direkt im Projektordner ./db/ sichtbar
       - ./db:/db
+      # Bind-Mount: App-Quellcode — Änderungen auf dem Host sind sofort im
+      # Container sichtbar. uvicorn --reload (APP_DEBUG=true) lädt dann
+      # automatisch neu, wenn Python-Dateien oder Templates geändert werden.
+      - ./app:/app/app
     networks:
       m365net:
         ipv4_address: 172.20.0.10

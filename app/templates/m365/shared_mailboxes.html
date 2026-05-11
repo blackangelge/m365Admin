@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Freigegebene Postfächer — M365 Admin{% endblock %}
+{% block page_alerts %}{% endblock %}
 
 {% block content %}
 <div class="ms-command-bar">
@@ -9,57 +10,63 @@
   <a href="/admin/m365/shared-mailboxes" class="ms-btn ms-btn-secondary ms-btn-sm">
     <i class="bi bi-arrow-clockwise"></i> Aktualisieren
   </a>
+  <button class="ms-btn ms-btn-primary ms-btn-sm" onclick="smOpenCreate()">
+    <i class="bi bi-plus-lg"></i> Postfach hinzufügen
+  </button>
 </div>
 
+{% if error is defined and error %}
+<div class="ms-alert ms-alert-danger mt-3 mb-2">
+  <i class="bi bi-exclamation-circle-fill"></i>
+  <span>{{ error }}</span>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
+{% if msg is defined and msg %}
+<div class="ms-alert ms-alert-success mt-3 mb-2">
+  <i class="bi bi-check-circle-fill"></i>
+  <span>{{ msg }}</span>
+  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
+</div>
+{% endif %}
 {% if graph_error %}
-<div class="ms-alert ms-alert-danger mb-4">
+<div class="ms-alert ms-alert-danger mt-3 mb-2">
   <i class="bi bi-exclamation-triangle-fill" style="flex-shrink:0;margin-top:1px;"></i>
   <div>
-    <strong>Graph API Fehler</strong><br>{{ graph_error }}<br><br>
-    <strong>Benötigte App-Berechtigungen (Application):</strong>
-    <code>User.Read.All</code>, <code>MailboxSettings.Read</code><br>
-    <small class="text-muted">Azure AD → App-Registrierungen → API-Berechtigungen → Anwendungsberechtigungen → Adminzustimmung erteilen</small>
+    <strong>Graph API Fehler</strong><br>{{ graph_error }}<br>
+    <small class="text-muted">Benötigt: <code>User.Read.All</code>, <code>MailboxSettings.Read</code></small>
   </div>
   <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
 </div>
 {% endif %}
 
-{% if msg %}
-<div class="ms-alert ms-alert-success mb-3">
-  <i class="bi bi-check-circle-fill"></i> {{ msg }}
-  <button class="ms-alert-close" onclick="this.parentElement.remove()">&times;</button>
-</div>
-{% endif %}
-
+{# ── Mailbox list ── #}
 <div class="ms-card">
   <div class="ms-card-header">
     <i class="bi bi-envelope-open-fill"></i> Freigegebene Postfächer
-    {% if mailboxes %}
     <span class="ms-badge ms-badge-blue ms-2">{{ mailboxes|length }}</span>
-    {% endif %}
+    <span class="small text-muted ms-2" style="font-size:12px;">Zeile anklicken zum Bearbeiten</span>
   </div>
   <div class="ms-table-wrap">
-    <table class="table datatable mb-0">
+    <table class="table datatable mb-0" id="sm-table">
       <thead>
         <tr>
           <th>Name</th>
+          <th>E-Mail-Adresse</th>
           <th>UPN</th>
-          <th>E-Mail</th>
         </tr>
       </thead>
       <tbody>
         {% for m in mailboxes %}
-        <tr>
+        <tr data-id="{{ m.id }}" onclick="smOpenMailbox('{{ m.id }}')" style="cursor:pointer;">
           <td class="fw-semibold">
             <div class="d-flex align-items-center gap-2">
-              <span style="width:28px;height:28px;border-radius:50%;background:#e5f2ff;color:#0078d4;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">
-                <i class="bi bi-envelope-fill" style="font-size:11px;"></i>
-              </span>
+              <span class="sm-avatar"><i class="bi bi-envelope-fill"></i></span>
               {{ m.displayName or '—' }}
             </div>
           </td>
-          <td class="small text-muted font-monospace">{{ m.userPrincipalName }}</td>
-          <td class="small text-muted">{{ m.mail or '—' }}</td>
+          <td class="small text-muted font-monospace">{{ m.mail or '—' }}</td>
+          <td class="small text-muted font-monospace">{{ m.userPrincipalName or '—' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -67,9 +74,492 @@
   </div>
 </div>
 
-<p class="text-muted small mt-3">
-  <i class="bi bi-info-circle me-1"></i>
-  Ausschließlich echte Exchange Online Shared Mailboxes (<code>mailboxSettings.userPurpose = "shared"</code>).
-  Benötigte Berechtigungen: <code>User.Read.All</code> + <code>MailboxSettings.Read</code>.
-</p>
+{# ── Backdrop ── #}
+<div id="sm-backdrop" onclick="smCloseAll()"></div>
+
+{# ══════ CREATE FLYOUT ════════════════════════════════════════════════════════ #}
+<div class="sm-flyout" id="sm-create-flyout">
+  <div class="sm-flyout-inner">
+    <div class="sm-flyout-header">
+      <span class="sm-flyout-title">Postfach hinzufügen</span>
+      <button class="sm-flyout-close" onclick="smCloseAll()"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="sm-flyout-body">
+      <p class="text-muted small mb-3">
+        Erstellt ein freigegebenes Postfach als deaktiviertes Azure-AD-Konto.
+        Exchange Online wandelt es automatisch in eine Shared Mailbox um.
+      </p>
+      <form method="post" action="/admin/m365/shared-mailboxes/create">
+        <div class="sm-form-group">
+          <label class="sm-label">Anzeigename <span class="text-danger">*</span></label>
+          <input type="text" name="display_name" class="sm-input" required
+                 placeholder="z. B. Support Team"
+                 oninput="smSuggestNick(this.value)">
+        </div>
+        <div class="sm-form-group">
+          <label class="sm-label">Mail-Nickname <span class="text-danger">*</span></label>
+          <input type="text" name="mail_nickname" id="cr-nick" class="sm-input" required
+                 placeholder="z. B. support" oninput="smPreviewUpn()">
+        </div>
+        <div class="sm-form-group">
+          <label class="sm-label">Domain <span class="text-danger">*</span></label>
+          <input type="text" name="domain" id="cr-domain" class="sm-input" required
+                 placeholder="z. B. contoso.com" oninput="smPreviewUpn()">
+          <div class="sm-hint" id="cr-upn-preview" style="color:#0078d4;font-weight:500;"></div>
+        </div>
+        <div class="sm-flyout-footer">
+          <button type="submit" class="ms-btn ms-btn-primary ms-btn-sm">
+            <i class="bi bi-plus-lg"></i> Erstellen
+          </button>
+          <button type="button" class="ms-btn ms-btn-secondary ms-btn-sm" onclick="smCloseAll()">Abbrechen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ══════ EDIT FLYOUT (populated by JS) ══════════════════════════════════════ #}
+<div class="sm-flyout" id="sm-edit-flyout">
+  <div class="sm-flyout-inner">
+    <div class="sm-flyout-header" id="sm-fly-header">
+      <div style="min-width:0;">
+        <div class="sm-flyout-title text-truncate" id="sm-fly-title">Laden…</div>
+        <div class="small text-muted mt-1 text-truncate" id="sm-fly-sub"></div>
+      </div>
+      <button class="sm-flyout-close ms-2" onclick="smCloseAll()"><i class="bi bi-x-lg"></i></button>
+    </div>
+
+    {# Tab bar #}
+    <div class="sm-tab-bar" id="sm-tab-bar">
+      <button class="sm-tab sm-tab-active" data-tab="allgemein" onclick="smTab(this,'allgemein')">Allgemein</button>
+      <button class="sm-tab" data-tab="aliases"   onclick="smTab(this,'aliases')">E-Mail &amp; Aliase</button>
+      <button class="sm-tab" data-tab="ooo"       onclick="smTab(this,'ooo')">Abwesenheit</button>
+      <button class="sm-tab sm-tab-danger" data-tab="del" onclick="smTab(this,'del')">Löschen</button>
+    </div>
+
+    <div class="sm-flyout-body" id="sm-flyout-body">
+      {# JS fills this #}
+      <div id="sm-fly-loading" class="text-center py-5 text-muted small">
+        <div class="sm-spinner mb-2"></div>Postfachdaten werden geladen…
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Nav loading overlay ── #}
+<div id="sm-nav-overlay">
+  <div class="sm-spinner"></div>
+  <span>Postfachdaten werden geladen…</span>
+</div>
+
+<style>
+/* ── Avatar ── */
+.sm-avatar {
+  width:28px;height:28px;border-radius:50%;
+  background:#e5f2ff;color:#0078d4;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:11px;flex-shrink:0;
+}
+/* ── Table ── */
+#sm-table tbody tr:hover { background:#f3f2f1; }
+#sm-table tbody tr.sm-row-active { background:#e5f2ff; }
+
+/* ── Backdrop ── */
+#sm-backdrop {
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.25);
+  z-index:499;
+}
+
+/* ── Flyout ── */
+.sm-flyout {
+  display:none;
+  position:fixed;
+  top:48px;right:0;bottom:0;
+  width:480px;max-width:96vw;
+  background:#fff;
+  border-left:1px solid #edebe9;
+  box-shadow:-6px 0 24px rgba(0,0,0,.14);
+  z-index:600;
+  flex-direction:column;
+  overflow:hidden;
+}
+.sm-flyout.sm-open { display:flex; }
+
+.sm-flyout-inner { display:flex;flex-direction:column;height:100%;overflow:hidden; }
+.sm-flyout-header {
+  display:flex;align-items:flex-start;justify-content:space-between;
+  padding:16px 20px 12px;border-bottom:1px solid #edebe9;flex-shrink:0;gap:12px;
+}
+.sm-flyout-title { font-size:16px;font-weight:600;color:#201f1e;display:block; }
+.sm-flyout-close {
+  background:none;border:none;color:#605e5c;cursor:pointer;
+  padding:4px 6px;border-radius:2px;font-size:14px;line-height:1;flex-shrink:0;
+}
+.sm-flyout-close:hover { background:#f3f2f1;color:#201f1e; }
+
+/* ── Tab bar ── */
+.sm-tab-bar {
+  display:flex;border-bottom:1px solid #edebe9;
+  overflow-x:auto;flex-shrink:0;padding:0 16px;scrollbar-width:none;
+}
+.sm-tab-bar::-webkit-scrollbar { display:none; }
+.sm-tab {
+  background:none;border:none;border-bottom:2px solid transparent;
+  padding:10px 12px;font-size:13px;color:#605e5c;cursor:pointer;
+  white-space:nowrap;transition:color .12s,border-color .12s;flex-shrink:0;
+}
+.sm-tab:hover { color:#0078d4; }
+.sm-tab.sm-tab-active { color:#0078d4;border-bottom-color:#0078d4;font-weight:600; }
+.sm-tab.sm-tab-danger { color:#a4262c; }
+.sm-tab.sm-tab-danger.sm-tab-active { color:#d13438;border-bottom-color:#d13438; }
+
+/* ── Flyout body ── */
+.sm-flyout-body { flex:1;overflow-y:auto;padding:16px 20px 20px; }
+.sm-flyout-footer { display:flex;gap:8px;padding-top:16px;border-top:1px solid #edebe9;margin-top:12px; }
+
+/* ── Form ── */
+.sm-form-group { margin-bottom:14px; }
+.sm-label { display:block;font-size:13px;font-weight:600;color:#323130;margin-bottom:5px; }
+.sm-input {
+  width:100%;padding:6px 10px;font-size:13px;
+  border:1px solid #c8c6c4;border-radius:2px;
+  color:#201f1e;background:#fff;box-sizing:border-box;
+  font-family:inherit;transition:border-color .12s,box-shadow .12s;
+}
+.sm-input:focus { outline:none;border-color:#0078d4;box-shadow:0 0 0 1px #0078d4; }
+.sm-input[readonly],.sm-input-ro { background:#f3f2f1!important;color:#605e5c!important; }
+textarea.sm-input { resize:vertical; }
+select.sm-input { cursor:pointer; }
+.sm-hint { font-size:11.5px;color:#605e5c;margin-top:4px;line-height:1.4; }
+.sm-readonly-val {
+  padding:6px 10px;background:#f3f2f1;border:1px solid #edebe9;
+  border-radius:2px;font-size:13px;color:#605e5c;
+}
+.sm-check-label { display:flex;align-items:flex-start;gap:10px;font-size:13px;color:#323130;cursor:pointer; }
+.sm-checkbox { width:16px;height:16px;accent-color:#0078d4;cursor:pointer;flex-shrink:0;margin-top:2px; }
+
+/* ── Info row ── */
+.sm-info-row {
+  display:flex;gap:20px;flex-wrap:wrap;
+  background:#faf9f8;border:1px solid #edebe9;border-radius:4px;padding:10px 14px;
+}
+.sm-info-item { display:flex;flex-direction:column;gap:2px; }
+.sm-info-label { font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c; }
+.sm-info-value { font-size:13px;color:#201f1e;font-weight:500; }
+
+/* ── Alias list ── */
+.sm-alias-list { display:flex;flex-direction:column;gap:4px;margin-bottom:12px; }
+.sm-alias-item {
+  display:flex;align-items:center;justify-content:space-between;
+  padding:5px 10px;background:#faf9f8;border:1px solid #edebe9;border-radius:2px;
+}
+.sm-alias-remove {
+  background:none;border:none;color:#d13438;cursor:pointer;
+  padding:0 4px;font-size:15px;line-height:1;border-radius:2px;
+}
+.sm-alias-remove:hover { background:#fde7e9; }
+
+/* ── Delete zone ── */
+.sm-delete-zone { border:1px solid #fde7e9;background:#fff8f8;border-radius:4px;padding:20px; }
+.ms-btn-danger { background:#d13438!important;border-color:#d13438!important;color:#fff!important; }
+.ms-btn-danger:hover { background:#b52328!important;border-color:#b52328!important; }
+
+/* ── Info alert ── */
+.ms-alert-info { background:#e8f4fd;border-color:#b3d7f5;color:#004578; }
+
+/* ── Section divider inside flyout ── */
+.sm-section-divider {
+  display:flex;align-items:center;gap:10px;
+  margin:20px 0 14px;
+  font-size:11px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.6px;color:#605e5c;
+}
+.sm-section-divider::before,.sm-section-divider::after {
+  content:'';flex:1;height:1px;background:#edebe9;
+}
+
+/* ── Spinner ── */
+.sm-spinner {
+  width:32px;height:32px;border-radius:50%;
+  border:3px solid #edebe9;border-top-color:#0078d4;
+  animation:sm-spin .7s linear infinite;
+  display:inline-block;
+}
+@keyframes sm-spin { to { transform:rotate(360deg); } }
+
+/* ── Nav overlay ── */
+#sm-nav-overlay {
+  display:none;position:fixed;inset:0;
+  background:rgba(255,255,255,.7);z-index:9999;
+  align-items:center;justify-content:center;flex-direction:column;gap:12px;
+  font-size:13px;color:#323130;font-weight:500;
+}
+
+/* ── Tab content ── */
+.sm-tab-content { display:none; }
+.sm-tab-content.sm-tab-active { display:block; }
+
+@media (max-width:860px) { .sm-flyout { width:100vw;max-width:100vw; } }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  'use strict';
+  var _currentId = null;
+
+  /* ── DOM refs ─────────────────────────────────────────────────────────── */
+  var backdrop   = document.getElementById('sm-backdrop');
+  var editFlyout = document.getElementById('sm-edit-flyout');
+  var creFlyout  = document.getElementById('sm-create-flyout');
+  var navOverlay = document.getElementById('sm-nav-overlay');
+  var flyBody    = document.getElementById('sm-flyout-body');
+  var flyTitle   = document.getElementById('sm-fly-title');
+  var flySub     = document.getElementById('sm-fly-sub');
+
+  /* ── Open/close helpers ──────────────────────────────────────────────── */
+  window.smCloseAll = function () {
+    [editFlyout, creFlyout].forEach(function (f) { if (f) f.classList.remove('sm-open'); });
+    if (backdrop)  backdrop.style.display = 'none';
+    document.querySelectorAll('#sm-table tbody tr').forEach(function (r) { r.classList.remove('sm-row-active'); });
+    _currentId = null;
+  };
+
+  function _openFlyout(el) {
+    smCloseAll();
+    if (el) el.classList.add('sm-open');
+    if (backdrop) backdrop.style.display = 'block';
+  }
+
+  /* ── Backdrop click (after smCloseAll is defined) ───────────────────── */
+  if (backdrop) backdrop.addEventListener('click', function () { smCloseAll(); });
+
+  /* ── Open CREATE flyout ──────────────────────────────────────────────── */
+  window.smOpenCreate = function () { _openFlyout(creFlyout); };
+
+  /* ── Open EDIT flyout via AJAX ───────────────────────────────────────── */
+  window.smOpenMailbox = function (id) {
+    if (_currentId === id) { smCloseAll(); return; }
+    _currentId = id;
+
+    // Highlight row
+    document.querySelectorAll('#sm-table tbody tr').forEach(function (r) {
+      r.classList.toggle('sm-row-active', r.dataset.id === id);
+    });
+
+    // Show flyout in loading state
+    flyTitle.textContent = 'Laden…';
+    flySub.textContent   = '';
+    flyBody.innerHTML    = '<div style="text-align:center;padding:40px 0;color:#605e5c;font-size:13px;">'
+                         + '<div class="sm-spinner" style="margin:0 auto 12px;display:block;"></div>'
+                         + 'Postfachdaten werden geladen…</div>';
+    // Reset to first tab
+    document.querySelectorAll('#sm-tab-bar .sm-tab').forEach(function (t) {
+      t.classList.toggle('sm-tab-active', t.dataset.tab === 'allgemein');
+    });
+    _openFlyout(editFlyout);
+
+    // Fetch mailbox details
+    fetch('/admin/m365/shared-mailboxes/' + encodeURIComponent(id) + '/detail')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        console.log('[SM Debug] detail response:', data);
+        if (data.error || data.detail) { _renderError(data.error || data.detail); return; }
+        _renderFlyout(data);
+      })
+      .catch(function (err) { _renderError('Netzwerkfehler: ' + err); });
+  };
+
+  function _renderError(msg) {
+    flyTitle.textContent = 'Fehler';
+    flySub.textContent   = '';
+    flyBody.innerHTML    = '<div class="ms-alert ms-alert-danger mb-0">'
+      + '<i class="bi bi-exclamation-triangle-fill"></i><span>' + _esc(msg) + '</span></div>'
+      + '<p class="text-muted small mt-3">Benötigte Berechtigungen: '
+      + '<code>User.Read.All</code>, <code>MailboxSettings.Read</code></p>';
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function _v(x, fb) { return (x != null && x !== '' && x !== undefined) ? x : (fb != null ? fb : '—'); }
+
+  /* ── Render flyout content ───────────────────────────────────────────── */
+  function _renderFlyout(mb) {
+    flyTitle.textContent = mb.displayName || '—';
+    flySub.textContent   = mb.mail || mb.userPrincipalName || '';
+
+    var ms  = mb.mailboxSettings || {};
+    var ooo = ms.automaticRepliesSetting || {};
+    var oooStatus = ooo.status || 'Disabled';
+
+    // Proxy aliases (secondary smtp: only)
+    var aliases = (mb.proxyAddresses || [])
+      .filter(function (p) { return p.match(/^smtp:/i) && !p.startsWith('SMTP:'); })
+      .map(function (p) { return p.slice(5); });
+
+    var fwdTo = (mb.otherMails && mb.otherMails[0]) ? mb.otherMails[0] : '';
+    var created = (mb.createdDateTime || '').slice(0, 10) || '—';
+
+    flyBody.innerHTML = [
+      /* ── Allgemein ── */
+      '<div class="sm-tab-content sm-tab-active" id="smt-allgemein">',
+        '<div class="sm-info-row mb-3">',
+          '<div class="sm-info-item"><span class="sm-info-label">Erstellt</span><span class="sm-info-value">' + _esc(created) + '</span></div>',
+          '<div class="sm-info-item"><span class="sm-info-label">Typ</span><span class="sm-info-value"><span class="ms-badge ms-badge-blue">Shared Mailbox</span></span></div>',
+          '<div class="sm-info-item"><span class="sm-info-label">GAL</span><span class="sm-info-value">' + (mb.showInAddressList ? 'Sichtbar' : 'Ausgeblendet') + '</span></div>',
+        '</div>',
+        '<form method="post" action="/admin/m365/shared-mailboxes/' + _esc(mb.id) + '/update">',
+          '<div class="sm-form-group"><label class="sm-label">Anzeigename</label>',
+            '<input type="text" name="display_name" class="sm-input" value="' + _esc(mb.displayName || '') + '" required></div>',
+          '<div class="sm-form-group"><label class="sm-label">Mail-Nickname</label>',
+            '<input type="text" name="mail_nickname" class="sm-input" value="' + _esc(mb.mailNickname || '') + '"></div>',
+          '<div class="sm-form-group"><label class="sm-label">Primäre E-Mail (UPN)</label>',
+            '<input type="text" class="sm-input sm-input-ro" value="' + _esc(mb.userPrincipalName || '') + '" readonly>',
+            '<div class="sm-hint">Kann nur direkt in Azure AD geändert werden.</div></div>',
+          '<div class="sm-form-group"><label class="sm-check-label">',
+            '<input type="hidden" name="show_in_address_list" value="false">',
+            '<input type="checkbox" name="show_in_address_list" value="true" class="sm-checkbox"' + (mb.showInAddressList ? ' checked' : '') + '>',
+            'In der Globalen Adressliste (GAL) anzeigen</label></div>',
+          '<div class="sm-flyout-footer"><button type="submit" class="ms-btn ms-btn-primary ms-btn-sm"><i class="bi bi-check2"></i> Speichern</button></div>',
+        '</form>',
+
+        /* ── Weiterleitung (merged into Allgemein) ── */
+        '<div class="sm-section-divider"><span>Weiterleitung</span></div>',
+        '<div class="ms-alert ms-alert-info mb-3" style="font-size:12.5px;">',
+          '<i class="bi bi-info-circle-fill"></i><span>Vollständige Exchange-Weiterleitung erfordert <code>Exchange.ManageAsApp</code>. Hier wird <code>otherMails</code> gesetzt.</span></div>',
+        '<form method="post" action="/admin/m365/shared-mailboxes/' + _esc(mb.id) + '/forwarding">',
+          '<div class="sm-form-group"><label class="sm-label">Weiterleiten an</label>',
+            '<input type="email" name="forward_to" class="sm-input" value="' + _esc(fwdTo) + '" placeholder="empfaenger@domain.com">',
+            '<div class="sm-hint">Leer lassen um die Weiterleitung zu deaktivieren.</div></div>',
+          '<div class="sm-flyout-footer"><button type="submit" class="ms-btn ms-btn-primary ms-btn-sm"><i class="bi bi-check2"></i> Speichern</button></div>',
+        '</form>',
+
+        /* ── Gesendete Elemente (merged into Allgemein) ── */
+        '<div class="sm-section-divider"><span>Gesendete Elemente</span></div>',
+        '<p class="text-muted small mb-3">Kopiert gesendete E-Mails in den Ordner „Gesendete Elemente" des Postfachs.</p>',
+        '<form method="post" action="/admin/m365/shared-mailboxes/' + _esc(mb.id) + '/sent-items">',
+          '<div class="sm-form-group">',
+            '<label class="sm-check-label mb-3"><input type="checkbox" name="copy_sent_as" value="true" class="sm-checkbox"' + (ms.messageCopyForSentAsEnabled ? ' checked' : '') + '>',
+              '<div><div class="fw-semibold" style="font-size:13px;">Als dieses Postfach gesendete Elemente kopieren</div>',
+              '<div class="text-muted" style="font-size:12px;margin-top:2px;">Nachrichten, die <em>als</em> das Postfach gesendet werden.</div></div></label>',
+            '<label class="sm-check-label"><input type="checkbox" name="copy_sent_on_behalf" value="true" class="sm-checkbox"' + (ms.messageCopyForSendOnBehalfEnabled ? ' checked' : '') + '>',
+              '<div><div class="fw-semibold" style="font-size:13px;">Im Auftrag dieses Postfachs gesendete Elemente kopieren</div>',
+              '<div class="text-muted" style="font-size:12px;margin-top:2px;">Nachrichten, die <em>im Auftrag</em> des Postfachs gesendet werden.</div></div></label>',
+          '</div>',
+          '<div class="sm-flyout-footer"><button type="submit" class="ms-btn ms-btn-primary ms-btn-sm"><i class="bi bi-check2"></i> Speichern</button></div>',
+        '</form>',
+      '</div>',
+
+      /* ── E-Mail & Aliase ── */
+      '<div class="sm-tab-content" id="smt-aliases">',
+        '<div class="sm-form-group"><label class="sm-label">Primäre E-Mail-Adresse</label>',
+          '<div class="sm-readonly-val font-monospace">' + _esc(mb.mail || mb.userPrincipalName || '—') + '</div></div>',
+        '<div class="sm-form-group"><label class="sm-label">Sekundäre Aliase</label>',
+          aliases.length ? '<div class="sm-alias-list">' + aliases.map(function (a) {
+            return '<div class="sm-alias-item"><span class="font-monospace small">' + _esc(a) + '</span>'
+              + '<form method="post" action="/admin/m365/shared-mailboxes/' + _esc(mb.id) + '/alias/remove" style="display:inline;" onsubmit="return confirm(\'Alias entfernen?\')">'
+              + '<input type="hidden" name="alias" value="' + _esc(a) + '">'
+              + '<button type="submit" class="sm-alias-remove" title="Entfernen"><i class="bi bi-x"></i></button></form></div>';
+          }).join('') + '</div>'
+          : '<div class="text-muted small mb-2">Keine sekundären Aliase vorhanden.</div>',
+        '</div>',
+        '<form method="post" action="/admin/m365/shared-mailboxes/' + _esc(mb.id) + '/alias/add">',
+          '<div class="sm-form-group"><label class="sm-label">Alias hinzufügen</label>',
+            '<div class="d-flex gap-2"><input type="email" name="alias" class="sm-input" placeholder="alias@domain.com" required style="flex:1;">',
+            '<button type="submit" class="ms-btn ms-btn-primary ms-btn-sm" style="white-space:nowrap;"><i class="bi bi-plus-lg"></i> Hinzufügen</button></div></div>',
+        '</form>',
+      '</div>',
+
+      /* ── Abwesenheit ── */
+      '<div class="sm-tab-content" id="smt-ooo">',
+        '<form method="post" action="/admin/m365/shared-mailboxes/' + _esc(mb.id) + '/mailbox-settings">',
+          '<div class="sm-form-group"><label class="sm-label">Automatische Antworten</label>',
+            '<select name="ooo_enabled" class="sm-input" onchange="smToggleOoo(this)">',
+              '<option value="false"'     + (oooStatus === 'Disabled'      ? ' selected' : '') + '>Deaktiviert</option>',
+              '<option value="true"'      + (oooStatus === 'AlwaysEnabled' ? ' selected' : '') + '>Immer aktiv</option>',
+              '<option value="scheduled"' + (oooStatus === 'Scheduled'     ? ' selected' : '') + '>Geplant (Zeitraum)</option>',
+            '</select></div>',
+          '<div id="ooo-sched-block" style="display:' + (oooStatus === 'Scheduled' ? 'block' : 'none') + '">',
+            '<div class="sm-form-group"><label class="sm-label">Zeitraum</label>',
+              '<div class="d-flex gap-2 align-items-center">',
+                '<input type="date" name="ooo_start" class="sm-input" style="flex:1;" value="' + _esc(((ooo.scheduledStartDateTime || {}).dateTime || '').slice(0,10)) + '">',
+                '<span class="text-muted small px-1">bis</span>',
+                '<input type="date" name="ooo_end" class="sm-input" style="flex:1;" value="' + _esc(((ooo.scheduledEndDateTime || {}).dateTime || '').slice(0,10)) + '">',
+              '</div></div>',
+          '</div>',
+          '<div class="sm-form-group"><label class="sm-label">Nachrichtentext</label>',
+            '<textarea name="ooo_message" class="sm-input" rows="6" placeholder="Ich bin derzeit nicht verfügbar…">' + _esc(ooo.internalReplyMessage || '') + '</textarea>',
+            '<div class="sm-hint">Für interne und externe Antworten.</div></div>',
+          '<div class="sm-flyout-footer"><button type="submit" class="ms-btn ms-btn-primary ms-btn-sm"><i class="bi bi-check2"></i> Speichern</button></div>',
+        '</form>',
+      '</div>',
+
+      /* ── Löschen ── */
+      '<div class="sm-tab-content" id="smt-del">',
+        '<div class="sm-delete-zone">',
+          '<i class="bi bi-exclamation-triangle-fill text-danger" style="font-size:28px;display:block;margin-bottom:10px;"></i>',
+          '<div class="fw-semibold mb-1">Postfach löschen</div>',
+          '<p class="text-muted small mb-3"><strong>' + _esc(mb.displayName || '') + '</strong> wird in den Azure AD Papierkorb verschoben und nach 30 Tagen endgültig gelöscht.</p>',
+          '<form method="post" action="/admin/m365/shared-mailboxes/' + _esc(mb.id) + '/delete" onsubmit="return smConfirmDel(this)">',
+            '<input type="hidden" name="display_name" value="' + _esc(mb.displayName || '') + '">',
+            '<div class="sm-form-group"><label class="sm-label">Zur Bestätigung gib <strong>' + _esc(mb.displayName || '') + '</strong> ein:</label>',
+              '<input type="text" name="confirm_name" class="sm-input" placeholder="' + _esc(mb.displayName || '') + '" required autocomplete="off"></div>',
+            '<button type="submit" class="ms-btn ms-btn-sm ms-btn-danger"><i class="bi bi-trash3"></i> Postfach löschen</button>',
+          '</form>',
+        '</div>',
+      '</div>',
+    ].join('');
+  }
+
+  /* ── Tab switching ───────────────────────────────────────────────────── */
+  window.smTab = function (btn, tabId) {
+    document.querySelectorAll('#sm-tab-bar .sm-tab').forEach(function (t) { t.classList.remove('sm-tab-active'); });
+    btn.classList.add('sm-tab-active');
+    document.querySelectorAll('.sm-tab-content').forEach(function (c) { c.classList.remove('sm-tab-active'); });
+    var target = document.getElementById('smt-' + tabId);
+    if (target) target.classList.add('sm-tab-active');
+  };
+
+  /* ── OOO schedule toggle ─────────────────────────────────────────────── */
+  window.smToggleOoo = function (sel) {
+    var block = document.getElementById('ooo-sched-block');
+    if (block) block.style.display = sel.value === 'scheduled' ? 'block' : 'none';
+  };
+
+  /* ── Delete confirm ──────────────────────────────────────────────────── */
+  window.smConfirmDel = function (form) {
+    var entered  = (form.querySelector('[name="confirm_name"]').value || '').trim();
+    var expected = (form.querySelector('[name="display_name"]').value || '').trim();
+    if (entered.toLowerCase() !== expected.toLowerCase()) {
+      alert('Der eingegebene Name stimmt nicht überein.');
+      return false;
+    }
+    return true;
+  };
+
+  /* ── Create form helpers ─────────────────────────────────────────────── */
+  window.smSuggestNick = function (val) {
+    var nick = document.getElementById('cr-nick');
+    if (!nick || nick.value) return;
+    nick.value = val.toLowerCase().trim().replace(/\s+/g,'.').replace(/[^a-z0-9._\-]/g,'');
+    smPreviewUpn();
+  };
+  window.smPreviewUpn = function () {
+    var nick = (document.getElementById('cr-nick') || {}).value || '';
+    var dom  = (document.getElementById('cr-domain') || {}).value || '';
+    var prev = document.getElementById('cr-upn-preview');
+    if (prev) prev.textContent = nick && dom ? '→ ' + nick + '@' + dom : '';
+  };
+
+  /* ── Open create if ?action=create ──────────────────────────────────── */
+  if (new URLSearchParams(window.location.search).get('action') === 'create') {
+    smOpenCreate();
+  }
+})();
+</script>
 {% endblock %}
